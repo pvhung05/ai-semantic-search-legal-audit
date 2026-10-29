@@ -1,0 +1,30 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: pg-luatvn
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: audit_rag
+      POSTGRES_PASSWORD: REDACTED
+      POSTGRES_DB: luatvn
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_luatvn_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    depends_on:
+      - db
+    environment:
+      DB_URL: postgresql://audit_rag:REDACTED@db:5432/luatvn
+      LLM_URL: ${LLM_URL:-http://host.docker.internal:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen3:14b}
+      LLM_API_KEY: ${LLM_API_KEY:-ollama}
+    ports:
+      - "8010:8010"
+    volumes:
+      - ./data:/app/data
+
+volumes:
+  pg_luatvn_data:

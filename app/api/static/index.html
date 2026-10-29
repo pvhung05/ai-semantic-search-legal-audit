@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>audit-legal — Đối chiếu dự thảo</title>
+<style>
+  :root {
+    --primary: #1e3a8a;      /* xanh đậm */
+    --primary-light: #3b82f6;
+    --accent: #e0ecff;       /* xanh nhạt */
+    --bg: #f8fbff;
+    --card: #ffffff;
+    --border: #cfdcf0;
+    --text: #0f172a;
+    --muted: #64748b;
+    --vp: #dc2626;
+    --vp-bg: #fef2f2;
+    --hl: #16a34a;
+    --hl-bg: #f0fdf4;
+    --cx: #d97706;
+    --cx-bg: #fffbeb;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; height:100%; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg); color: var(--text); font-size: 14px;
+  }
+  header {
+    background: linear-gradient(90deg, var(--primary), var(--primary-light));
+    color: white; padding: 14px 24px; display: flex; align-items: center;
+    gap: 18px; box-shadow: 0 2px 8px rgba(30,58,138,0.15);
+  }
+  header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  header .sub { font-size: 12px; opacity: 0.85; }
+  header nav { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .llm-switch { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.15);
+                border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; padding: 6px 10px; }
+  .llm-switch label { color: white; font-size: 12px; cursor: pointer; user-select: none;
+                      opacity: 0.7; transition: opacity 0.15s; }
+  .llm-switch label.active { opacity: 1; font-weight: 600; }
+  .llm-switch .toggle { position: relative; width: 32px; height: 16px; background: rgba(255,255,255,0.3);
+                        border-radius: 10px; cursor: pointer; transition: background 0.2s; }
+  .llm-switch .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px;
+                               height: 12px; background: white; border-radius: 50%; transition: left 0.2s; }
+  .llm-switch .toggle.local::after { left: 18px; }
+  .btn {
+    background: white; color: var(--primary); border: 1px solid var(--border);
+    padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    font-weight: 500; transition: all 0.15s;
+  }
+  .btn:hover { background: var(--accent); }
+  .btn.primary { background: var(--primary); color: white; border-color: var(--primary); }
+  .btn.primary:hover { background: var(--primary-light); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  header .btn { background: rgba(255,255,255,0.15); color: white; border-color: rgba(255,255,255,0.3); }
+  header .btn:hover { background: rgba(255,255,255,0.25); }
+
+  main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px;
+         height: calc(100vh - 60px); overflow: hidden; }
+  .pane {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(30,58,138,0.05);
+  }
+  .pane-head {
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    background: var(--accent); color: var(--primary); font-weight: 600;
+    display: flex; align-items: center; gap: 10px; justify-content: space-between;
+  }
+  .pane-body { padding: 16px; overflow: auto; flex: 1; }
+
+  .uploader {
+    border: 2px dashed var(--border); border-radius: 8px; padding: 20px;
+    text-align: center; cursor: pointer; transition: all 0.15s;
+    background: var(--bg);
+  }
+  .uploader:hover, .uploader.drag { border-color: var(--primary-light); background: var(--accent); }
+  .uploader input { display: none; }
+  .uploader .icon { font-size: 28px; margin-bottom: 6px; }
+  .uploader .label { font-weight: 500; color: var(--primary); }
+  .uploader .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  .draft-content { white-space: pre-wrap; font-family: "Georgia", serif;
+                   line-height: 1.7; font-size: 14px; color: var(--text); }
+  .draft-placeholder { color: var(--muted); font-style: italic; text-align: center;
+                       padding: 40px 20px; }
+
+  /* Nguyen van du thao - render lien mach */
+  .draft-full { font-family: "Georgia", "Times New Roman", serif; line-height: 1.75;
+                font-size: 14px; color: var(--text); }
+  .draft-full .dieu-title { font-weight: 700; color: var(--primary); margin-top: 14px;
+                            margin-bottom: 2px; font-size: 15px; }
+  .draft-full .khoan-no { color: var(--muted); font-weight: 600; margin-right: 4px; }
+  .draft-full .dv {
+    display: block; padding: 2px 6px; margin: 2px -6px; border-radius: 4px;
+    transition: background 0.2s; cursor: pointer; border-left: 3px solid transparent;
+  }
+  .draft-full .dv:hover { background: var(--accent); }
+  .draft-full .dv.hl-vp { background: var(--vp-bg); border-left-color: var(--vp); }
+  .draft-full .dv.hl-hl { background: var(--hl-bg); border-left-color: var(--hl); }
+  .draft-full .dv.hl-cx { background: var(--cx-bg); border-left-color: var(--cx); }
+  .draft-full .dv.focus { outline: 2px solid var(--primary-light); outline-offset: 2px; }
+  .draft-full .can-cu-tho { font-style: italic; color: var(--muted); font-size: 13px;
+                            padding-left: 10px; border-left: 2px solid var(--border); margin: 4px 0; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+  .stat {
+    padding: 12px; border-radius: 8px; text-align: center;
+    border: 1px solid; font-weight: 600;
+  }
+  .stat.vp { background: var(--vp-bg); border-color: #fecaca; color: var(--vp); }
+  .stat.hl { background: var(--hl-bg); border-color: #bbf7d0; color: var(--hl); }
+  .stat.cx { background: var(--cx-bg); border-color: #fde68a; color: var(--cx); }
+  .stat .num { font-size: 24px; display: block; }
+  .stat .lbl { font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; }
+
+  .tabs { display: flex; gap: 2px; border-bottom: 2px solid var(--border); margin-bottom: 12px; }
+  .tab {
+    padding: 8px 14px; cursor: pointer; border: none; background: transparent;
+    font-size: 13px; color: var(--muted); border-bottom: 2px solid transparent;
+    margin-bottom: -2px; font-weight: 500;
+  }
+  .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+  .item {
+    border: 1px solid var(--border); border-radius: 8px; padding: 12px;
+    margin-bottom: 10px; background: white;
+  }
+  .item.vp { border-left: 4px solid var(--vp); }
+  .item.hl { border-left: 4px solid var(--hl); }
+  .item.cx { border-left: 4px solid var(--cx); }
+  .item .vi-tri { font-weight: 600; color: var(--primary); margin-bottom: 6px; }
+  .item .label-tag {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.3px; margin-left: 6px;
+  }
+  .item.vp .label-tag { background: var(--vp-bg); color: var(--vp); }
+  .item.hl .label-tag { background: var(--hl-bg); color: var(--hl); }
+  .item.cx .label-tag { background: var(--cx-bg); color: var(--cx); }
+  .item .row { margin-top: 8px; font-size: 13px; }
+  .item .row-label { font-weight: 600; color: var(--muted); font-size: 11px;
+                     text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.3px; }
+  .item blockquote {
+    margin: 4px 0; padding: 8px 12px; background: var(--bg);
+    border-left: 3px solid var(--border); border-radius: 0 4px 4px 0;
+    font-size: 13px; color: var(--text); line-height: 1.5;
+  }
+  .item .giai-thich { color: var(--text); font-style: italic; margin-top: 6px; }
+  .item .de-xuat { color: var(--primary); margin-top: 6px; }
+  .item .tin-cay { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border);
+                   display: flex; align-items: center; gap: 10px; }
+  .item .tc-bar { flex: 1; height: 6px; background: var(--accent); border-radius: 3px; overflow: hidden; }
+  .item .tc-fill { height: 100%; transition: width 0.3s; }
+  .item .tc-num { font-size: 12px; font-weight: 600; min-width: 36px; text-align: right; }
+
+  .toolbar { padding: 10px 16px; border-top: 1px solid var(--border); background: var(--bg);
+             display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+  .status { color: var(--muted); font-size: 12px; }
+  .spinner {
+    width: 14px; height: 14px; border: 2px solid var(--accent);
+    border-top-color: var(--primary); border-radius: 50%;
+    animation: spin 0.8s linear infinite; display: inline-block; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Modal nạp luật */
+  .modal-mask { position: fixed; inset: 0; background: rgba(15,23,42,0.5); display: none;
+                align-items: center; justify-content: center; z-index: 50; }
+  .modal-mask.open { display: flex; }
+  .modal { background: white; border-radius: 10px; padding: 20px; width: 90%; max-width: 560px;
+           max-height: 90vh; overflow: auto; }
+  .modal h3 { margin-top: 0; color: var(--primary); }
+  .modal label { display: block; font-size: 12px; color: var(--muted); margin-top: 10px;
+                 font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+  .modal input, .modal select, .modal textarea {
+    width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 13px; font-family: inherit; margin-top: 4px;
+  }
+  .modal textarea { min-height: 120px; font-family: monospace; }
+  .modal .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+
+  .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 18px;
+           background: var(--primary); color: white; border-radius: 6px; z-index: 100;
+           box-shadow: 0 4px 12px rgba(30,58,138,0.3); display: none; }
+  .toast.err { background: var(--vp); }
+  .toast.show { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>AUDIT</h1>
+    <div class="sub">Hệ thống đối chiếu dự thảo với kho pháp luật</div>
+  </div>
+  <nav>
+    <div class="llm-switch" title="Chọn LLM dùng cho /ask và /audit">
+      <label id="lbl-gemini" class="active" onclick="setLocal(false)">Gemini</label>
+      <div class="toggle" id="toggle-llm" onclick="toggleLocal()"></div>
+      <label id="lbl-local" onclick="setLocal(true)">model local</label>
+    </div>
+    <button class="btn" onclick="openLegalModal()">+ Nạp luật</button>
+    <button class="btn" onclick="loadLegalList()">Kho luật</button>
+  </nav>
+</header>
+
+<main>
+  <!-- LEFT: dự thảo -->
+  <section class="pane">
+    <div class="pane-head">
+      <span>📄 Văn bản dự thảo</span>
+      <span id="draft-name" style="font-weight:400; font-size:12px;"></span>
+    </div>
+    <div class="pane-body">
+      <div class="uploader" id="uploader"
+           onclick="document.getElementById('file-input').click()"
+           ondragover="event.preventDefault(); this.classList.add('drag')"
+           ondragleave="this.classList.remove('drag')"
+           ondrop="dropFile(event)">
+        <div class="icon">⬆</div>
+        <div class="label">Kéo thả hoặc chọn file dự thảo</div>
+        <div class="hint">Hỗ trợ PDF / DOCX / TXT</div>
+        <input type="file" id="file-input" accept=".pdf,.docx,.txt"
+               onchange="uploadDraft(this.files[0])" />
+      </div>
+      <div id="draft-view" style="margin-top: 16px;">
+        <div class="draft-placeholder">Chưa có dự thảo. Hãy tải lên để bắt đầu.</div>
+      </div>
+    </div>
+    <div class="toolbar">
+      <span class="status" id="draft-status">—</span>
+      <button class="btn primary" id="btn-audit" onclick="runAudit()" disabled>
+        Đối sánh với kho luật
+      </button>
+    </div>
+  </section>
+
+  <!-- RIGHT: kết quả -->
+  <section class="pane">
+    <div class="pane-head">
+      <span>🔍 Kết quả đối chiếu</span>
+      <span id="audit-status" style="font-weight:400; font-size:12px;"></span>
+    </div>
+    <div class="pane-body" id="audit-view">
+      <div class="draft-placeholder">
+        Chưa có kết quả. Tải dự thảo lên và bấm "Đối sánh" ở cột trái.
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Modal nạp luật -->
+<div class="modal-mask" id="legal-modal">
+  <div class="modal">
+    <h3>Nạp văn bản luật vào kho</h3>
+    <label>File (PDF/DOCX/TXT)</label>
+    <input type="file" id="legal-file" accept=".pdf,.docx,.txt" />
+    <div class="row2">
+      <div>
+        <label>ID (duy nhất)</label>
+        <input id="legal-id" placeholder="BLLD-2019-45" />
+      </div>
+      <div>
+        <label>Số hiệu</label>
+        <input id="legal-so-hieu" placeholder="45/2019/QH14" />
+      </div>
+    </div>
+    <label>Tên văn bản</label>
+    <input id="legal-ten" placeholder="Bộ luật Lao động" />
+    <div class="row2">
+      <div>
+        <label>Loại</label>
+        <select id="legal-loai">
+          <option value="bo_luat">Bộ luật</option>
+          <option value="luat">Luật</option>
+          <option value="hien_phap">Hiến pháp</option>
+          <option value="nghi_quyet">Nghị quyết</option>
+          <option value="nghi_dinh">Nghị định</option>
+          <option value="quyet_dinh">Quyết định</option>
+          <option value="thong_tu">Thông tư</option>
+          <option value="khac">Khác</option>
+        </select>
+      </div>
+      <div>
+        <label>Cấp (1-9)</label>
+        <input id="legal-cap" type="number" value="2" min="1" max="9" />
+      </div>
+    </div>
+    <div class="row2">
+      <div>
+        <label>Ngày hiệu lực</label>
+        <input id="legal-hl" type="date" />
+      </div>
+      <div>
+        <label>Lĩnh vực</label>
+        <input id="legal-lv" placeholder="lao_dong" />
+      </div>
+    </div>
+    <footer>
+      <button class="btn" onclick="closeLegalModal()">Hủy</button>
+      <button class="btn primary" onclick="uploadLegal()">Nạp</button>
+    </footer>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = "";
+let taiLieuId = null;
+let currentTab = "VI_PHAM";
+let auditResult = null;
+let isLocal = false;   // false = Gemini, true = model local
+
+function setLocal(v) {
+  isLocal = !!v;
+  document.getElementById('toggle-llm').classList.toggle('local', isLocal);
+  document.getElementById('lbl-local').classList.toggle('active', isLocal);
+  document.getElementById('lbl-gemini').classList.toggle('active', !isLocal);
+  try { localStorage.setItem('audit_is_local', isLocal ? '1' : '0'); } catch(e){}
+}
+function toggleLocal() { setLocal(!isLocal); }
+try { if (localStorage.getItem('audit_is_local') === '1') setLocal(true); } catch(e){}
+
+function toast(msg, err=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (err ? ' err' : '');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function dropFile(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag');
+  if (e.dataTransfer.files.length) uploadDraft(e.dataTransfer.files[0]);
+}
+
+async function uploadDraft(file) {
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  document.getElementById('draft-status').innerHTML = '<span class="spinner"></span> Đang tải lên...';
+  document.getElementById('btn-audit').disabled = true;
+  document.getElementById('draft-name').textContent = file.name;
+  try {
+    const r = await fetch(API + '/upload/draft', { method: 'POST', body: fd });
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    taiLieuId = d.tai_lieu_id;
+    renderDraft(d);
+    document.getElementById('draft-status').textContent =
+      `${d.so_don_vi} đơn vị • id: ${taiLieuId}`;
+    document.getElementById('btn-audit').disabled = false;
+    toast('Đã tải dự thảo. Bấm "Đối sánh" để tiếp tục.');
+  } catch (e) {
+    document.getElementById('draft-status').textContent = 'Lỗi tải lên';
+    toast('Lỗi: ' + e.message, true);
+  }
+}
+
+function renderDraft(d) {
+  const chunks = d.chunks || [];
+  const canCuHtml = (d.can_cu_tho || []).map(c =>
+    `<div class="can-cu-tho">${esc(c)}</div>`).join('');
+
+  // Render lien mach: moi don vi la 1 doan; neu bat dau 1 Dieu moi thi them tieu de in dam
+  let last_dieu = null;
+  const body = chunks.map(c => {
+    let prefix = '';
+    if (c.so_dieu && c.so_dieu !== last_dieu) {
+      const tieu_de_dieu = extractDieuTitle(c);
+      prefix = `<div class="dieu-title">Điều ${esc(c.so_dieu)}${tieu_de_dieu ? '. ' + esc(tieu_de_dieu) : ''}</div>`;
+      last_dieu = c.so_dieu;
+    }
+    const marker = c.so_khoan ? `${esc(c.so_khoan)}.` : (c.diem ? `${esc(c.diem)})` : '');
+    const inner = marker
+      ? `<span class="khoan-no">${marker}</span>${esc(c.cau_goc)}`
+      : esc(c.cau_goc);
+    return `${prefix}<span class="dv" id="dv-${esc(c.id)}" data-id="${esc(c.id)}"
+                           onclick="focusFinding('${esc(c.id)}')">${inner}</span>`;
+  }).join('');
+  document.getElementById('draft-view').innerHTML =
+    `<div class="draft-full">
+       ${canCuHtml}
+       ${body}
+     </div>`;
+}
+
+function extractDieuTitle(c) {
+  // tieu_de thuong duoc gan tu parser (tieu_de_dieu). Trong /upload/draft response,
+  // chi co 'cau_goc' nen tieu de phai suy tu mota khac. Bo qua.
+  return '';
+}
+
+const FINDING_INDEX = {};   // don_vi_id -> {tag, item} dau tien, de hover/click
+function applyHighlights() {
+  if (!auditResult) return;
+  // Priority: VI_PHAM > CHUA_XAC_DINH > HOP_LE neu 1 don vi co nhieu finding
+  const priority = { 'VI_PHAM': 3, 'CHUA_XAC_DINH': 2, 'HOP_LE': 1 };
+  const best = {};
+  for (const tag of ['VI_PHAM', 'CHUA_XAC_DINH', 'HOP_LE']) {
+    for (const it of (auditResult.ket_qua[tag] || [])) {
+      const id = it.don_vi_id;
+      if (!id) continue;
+      if (!best[id] || priority[tag] > priority[best[id].tag]) {
+        best[id] = { tag, item: it };
+      }
+    }
+  }
+  Object.assign(FINDING_INDEX, best);
+  // Xoa highlight cu
+  document.querySelectorAll('.draft-full .dv').forEach(e => {
+    e.classList.remove('hl-vp', 'hl-hl', 'hl-cx', 'focus');
+    e.title = '';
+  });
+  // Ap dung highlight
+  for (const [id, {tag, item}] of Object.entries(best)) {
+    const el = document.getElementById('dv-' + id);
+    if (!el) continue;
+    const cls = tag === 'VI_PHAM' ? 'hl-vp' : tag === 'HOP_LE' ? 'hl-hl' : 'hl-cx';
+    el.classList.add(cls);
+    const label = tag === 'VI_PHAM' ? 'VI PHẠM' : tag === 'HOP_LE' ? 'HỢP LỆ' : 'CHƯA XÁC ĐỊNH';
+    el.title = `${label}: ${item.giai_thich || ''}`.slice(0, 300);
+  }
+}
+
+function focusFinding(dvId) {
+  const info = FINDING_INDEX[dvId];
+  if (!info) return;
+  currentTab = info.tag;
+  renderAudit();
+  setTimeout(() => {
+    // Scroll den item tuong ung ben panel ket qua (match theo noi_dung_du_thao)
+    const items = document.querySelectorAll('#audit-view .item');
+    for (const it of items) {
+      const q = it.querySelector('blockquote');
+      if (q && q.textContent.trim() === (info.item.noi_dung_du_thao || '').trim()) {
+        it.scrollIntoView({behavior: 'smooth', block: 'center'});
+        it.style.outline = '2px solid var(--primary-light)';
+        setTimeout(() => it.style.outline = '', 1500);
+        break;
+      }
+    }
+  }, 50);
+}
+
+async function runAudit() {
+  if (!taiLieuId) return;
+  document.getElementById('audit-status').innerHTML = '<span class="spinner"></span> Đang đối sánh (có thể mất vài phút)...';
+  document.getElementById('btn-audit').disabled = true;
+  document.getElementById('audit-view').innerHTML =
+    '<div class="draft-placeholder"><div class="spinner"></div><div style="margin-top:12px;">Đang gọi LLM để phân tích từng đơn vị...</div></div>';
+  try {
+    const r = await fetch(API + '/audit', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tai_lieu_id: taiLieuId, top_k: 5, is_local: isLocal })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    auditResult = await r.json();
+    document.getElementById('audit-status').textContent = 'Hoàn tất';
+    renderAudit();
+    applyHighlights();
+  } catch (e) {
+    document.getElementById('audit-status').textContent = 'Lỗi';
+    document.getElementById('audit-view').innerHTML =
+      `<div style="color:var(--vp); padding:20px;">Lỗi: ${esc(e.message)}</div>`;
+    toast('Lỗi: ' + e.message, true);
+  } finally {
+    document.getElementById('btn-audit').disabled = false;
+  }
+}
+
+function renderAudit() {
+  const r = auditResult;
+  const t = r.thong_ke || {};
+  const stats = `
+    <div class="stats">
+      <div class="stat vp"><span class="num">${t.VI_PHAM||0}</span><span class="lbl">Vi phạm</span></div>
+      <div class="stat hl"><span class="num">${t.HOP_LE||0}</span><span class="lbl">Hợp lệ</span></div>
+      <div class="stat cx"><span class="num">${t.CHUA_XAC_DINH||0}</span><span class="lbl">Chưa xác định</span></div>
+    </div>`;
+  const tabs = `
+    <div class="tabs">
+      <button class="tab ${currentTab==='VI_PHAM'?'active':''}" onclick="switchTab('VI_PHAM')">Vi phạm (${t.VI_PHAM||0})</button>
+      <button class="tab ${currentTab==='HOP_LE'?'active':''}" onclick="switchTab('HOP_LE')">Hợp lệ (${t.HOP_LE||0})</button>
+      <button class="tab ${currentTab==='CHUA_XAC_DINH'?'active':''}" onclick="switchTab('CHUA_XAC_DINH')">Chưa xác định (${t.CHUA_XAC_DINH||0})</button>
+    </div>`;
+  const items = (r.ket_qua[currentTab] || []).map(k => renderItem(k, currentTab)).join('')
+    || '<div class="draft-placeholder">Không có mục nào trong nhóm này.</div>';
+  document.getElementById('audit-view').innerHTML = stats + tabs + items;
+}
+
+function renderItem(k, tag) {
+  const cls = tag === 'VI_PHAM' ? 'vp' : tag === 'HOP_LE' ? 'hl' : 'cx';
+  const label = tag === 'VI_PHAM' ? 'VI PHẠM' : tag === 'HOP_LE' ? 'HỢP LỆ' : 'CHƯA XÁC ĐỊNH';
+  const cc = k.can_cu_phap_ly || {};
+  const cc_html = (cc.trich_dan) ? `
+    <div class="row">
+      <div class="row-label">Căn cứ pháp lý ${cc.so_hieu ? `(${esc(cc.so_hieu)}${cc.ten_van_ban ? ' – ' + esc(cc.ten_van_ban) : ''})` : ''}</div>
+      <blockquote>${esc(cc.trich_dan)}</blockquote>
+    </div>` : '';
+  const tcPercent = Math.round((Number(k.tin_cay) || 0) * 100);
+  const tcColor = tcPercent >= 80 ? 'var(--hl)' : tcPercent >= 50 ? 'var(--cx)' : 'var(--vp)';
+  const tin_cay_html = `
+    <div class="tin-cay" title="Độ tin cậy LLM đánh giá: ${tcPercent}%">
+      <span class="row-label" style="margin:0;">Độ tin cậy</span>
+      <div class="tc-bar"><div class="tc-fill" style="width:${tcPercent}%; background:${tcColor};"></div></div>
+      <span class="tc-num" style="color:${tcColor};">${tcPercent}%</span>
+    </div>`;
+  return `<div class="item ${cls}">
+    <div class="vi-tri">${esc(k.vi_tri_du_thao || '')}
+      <span class="label-tag">${label}</span></div>
+    <div class="row">
+      <div class="row-label">Nội dung dự thảo</div>
+      <blockquote>${esc(k.noi_dung_du_thao || '')}</blockquote>
+    </div>
+    ${cc_html}
+    ${k.giai_thich ? `<div class="giai-thich">${esc(k.giai_thich)}</div>` : ''}
+    ${k.de_xuat_sua ? `<div class="de-xuat"><strong>Đề xuất sửa:</strong> ${esc(k.de_xuat_sua)}</div>` : ''}
+    ${tin_cay_html}
+  </div>`;
+}
+
+function switchTab(t) { currentTab = t; renderAudit(); }
+
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+/* ===== Nạp luật modal ===== */
+function openLegalModal() { document.getElementById('legal-modal').classList.add('open'); }
+function closeLegalModal() { document.getElementById('legal-modal').classList.remove('open'); }
+
+async function uploadLegal() {
+  const file = document.getElementById('legal-file').files[0];
+  if (!file) { toast('Chọn file luật', true); return; }
+  const meta = {
+    id: document.getElementById('legal-id').value.trim(),
+    so_hieu: document.getElementById('legal-so-hieu').value.trim(),
+    ten: document.getElementById('legal-ten').value.trim(),
+    loai: document.getElementById('legal-loai').value,
+    cap: parseInt(document.getElementById('legal-cap').value) || 2,
+  };
+  const hl = document.getElementById('legal-hl').value;
+  if (hl) meta.ngay_hieu_luc = hl;
+  const lv = document.getElementById('legal-lv').value.trim();
+  if (lv) meta.linh_vuc = lv.split(',').map(x => x.trim()).filter(Boolean);
+  if (!meta.id || !meta.so_hieu || !meta.ten) {
+    toast('Nhập đủ ID, số hiệu, tên', true); return;
+  }
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('meta_json', JSON.stringify(meta));
+  try {
+    const r = await fetch(API + '/upload/legal', { method: 'POST', body: fd });
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    toast(`Đã nạp ${meta.id} (${d.so_dieu||0} Điều, ${d.so_khoan||0} Khoản)`);
+    closeLegalModal();
+  } catch (e) {
+    toast('Lỗi nạp luật: ' + e.message, true);
+  }
+}
+
+async function loadLegalList() {
+  try {
+    const r = await fetch(API + '/legal?con_hieu_luc=false');
+    if (!r.ok) throw new Error(await r.text());
+    const list = await r.json();
+    const html = list.map(v => `
+      <div style="padding:10px; border-bottom:1px solid var(--border);">
+        <div style="font-weight:600; color:var(--primary);">${esc(v.so_hieu)} — ${esc(v.ten)}</div>
+        <div style="font-size:12px; color:var(--muted); margin-top:2px;">
+          id: ${esc(v.id)} • loại: ${esc(v.loai)} • cấp ${v.cap} • ${v.so_khoan||0} Khoản
+          ${v.ngay_het_hieu_luc ? ' • <span style="color:var(--vp)">hết hiệu lực</span>' : ''}
+        </div>
+      </div>`).join('');
+    document.getElementById('audit-view').innerHTML =
+      `<h3 style="margin-top:0; color:var(--primary);">Kho pháp luật (${list.length} văn bản)</h3>${html}`;
+    document.getElementById('audit-status').textContent = `${list.length} văn bản`;
+  } catch (e) {
+    toast('Lỗi tải danh sách: ' + e.message, true);
+  }
+}
+</script>
+</body>
+</html>
