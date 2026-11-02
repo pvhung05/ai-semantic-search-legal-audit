@@ -19,14 +19,16 @@ from .parser import html_doc_to_text
 log = logging.getLogger(__name__)
 
 # level (API) -> cap_node (enum public)
+# Thu bac: Part > Chapter > Section > Article > Clause > Point
 _LEVEL_CAP = {
+    "Part":    "phan",
     "Chapter": "chuong",
     "Section": "muc",
     "Article": "dieu",
     "Clause":  "khoan",
     "Point":   "diem",
 }
-_CAP_PREFIX = {"chuong": "C", "muc": "M", "dieu": "D", "khoan": "K", "diem": "d"}
+_CAP_PREFIX = {"phan": "P", "chuong": "C", "muc": "M", "dieu": "D", "khoan": "K", "diem": "d"}
 
 # trang thai hop le cua public.trangthai_node
 _NODE_TT = {
@@ -35,6 +37,7 @@ _NODE_TT = {
 }
 
 _RE_STT = {
+    "phan":   re.compile(r"Phần\s+(thứ\s+\S+|[IVXLCDM0-9]+[A-Za-zđ]?)", re.I),
     "chuong": re.compile(r"Chương\s+([IVXLCDM0-9]+[A-Za-zđ]?)", re.I),
     "muc":    re.compile(r"Mục\s+([0-9IVXLCDM]+[A-Za-zđ]?)", re.I),
     "dieu":   re.compile(r"Điều\s+(\d+[a-zđ]?)", re.I),
@@ -84,7 +87,9 @@ def _flatten(tree: list[dict], van_ban_id: str) -> list[dict]:
                 log.warning("node khong co id (level=%s), bo qua", level)
                 continue
             if cap is None:
-                log.warning("level '%s' chua map (node %s), bo qua ca nhanh", level, nid)
+                # Level la: bo node nay nhung GIU con (noi vao parent hien tai) de khong mat noi dung
+                log.warning("level '%s' chua map (node %s), bo node - giu nhanh con", level, nid)
+                walk(n.get("children") or [], parent_id, path)
                 continue
             stt = _so_thu_tu(cap, n)
             seg = _CAP_PREFIX[cap] + (stt or "?")

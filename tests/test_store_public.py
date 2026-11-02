@@ -24,6 +24,8 @@ def test_parse_date():
 def test_so_thu_tu_theo_cap():
     assert sp._so_thu_tu("dieu", {"content": {"title": "Điều 54"}}) == "54"
     assert sp._so_thu_tu("dieu", {"title": "Điều 5. Lựa chọn..."}) == "5"
+    assert sp._so_thu_tu("phan", {"title": "Phần thứ nhất\nNHỮNG QUY ĐỊNH CHUNG"}) == "thứ nhất"
+    assert sp._so_thu_tu("phan", {"title": "Phần I"}) == "I"
     assert sp._so_thu_tu("chuong", {"title": "Chương I\nQUY ĐỊNH CHUNG"}) == "I"
     assert sp._so_thu_tu("khoan", {"title": "Khoản 2"}) == "2"
     assert sp._so_thu_tu("diem", {"title": "Điểm a"}) == "a"
@@ -53,6 +55,31 @@ def test_flatten_cay_giu_thu_tu_cha_truoc_con():
     assert rows[0]["van_ban_id"] == "VB"
 
 
-def test_flatten_bo_qua_level_chua_map():
-    tree = [{"id": "x", "level": "Khac", "title": "?", "children": []}]
-    assert sp._flatten(tree, "VB") == []
+def test_flatten_part_la_goc():
+    tree = [{
+        "id": "p1", "level": "Part", "title": "Phần thứ nhất", "ptype": 1,
+        "orderIndex": 1, "isLeaf": False, "content": {"title": "Phần thứ nhất"},
+        "children": [{
+            "id": "c1", "level": "Chapter", "title": "Chương I", "ptype": 2,
+            "orderIndex": 2, "isLeaf": False, "content": {"title": "Chương I"}, "children": [],
+        }],
+    }]
+    rows = sp._flatten(tree, "VB")
+    assert [r["cap"] for r in rows] == ["phan", "chuong"]
+    assert rows[1]["parent_id"] == "p1"
+    assert rows[0]["duong_dan"] == "Pthứ nhất"
+
+
+def test_flatten_level_la_giu_nhanh_con():
+    """Level chua map: bo node nay nhung GIU con (noi vao parent), khong mat noi dung."""
+    tree = [{
+        "id": "x", "level": "Khac", "title": "?",
+        "children": [{
+            "id": "d1", "level": "Article", "title": "Điều 1. X", "ptype": 5,
+            "orderIndex": 1, "isLeaf": True,
+            "content": {"title": "Điều 1", "content": "Điều 1. X"}, "children": [],
+        }],
+    }]
+    rows = sp._flatten(tree, "VB")
+    assert [r["id"] for r in rows] == ["d1"]        # node 'Khac' bi bo
+    assert rows[0]["parent_id"] is None             # con noi len parent cua node bi bo

@@ -143,7 +143,7 @@ audit_rag/
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 
-CREATE TYPE cap_node       AS ENUM ('chuong','muc','dieu','khoan','diem');
+CREATE TYPE cap_node       AS ENUM ('phan','chuong','muc','dieu','khoan','diem'); -- 'phan' them o migration 004
 CREATE TYPE trangthai_node AS ENUM
   ('chua_hieu_luc','con_hieu_luc','het_hieu_luc_mot_phan','het_hieu_luc','bai_bo','khong_xac_dinh');
 CREATE TYPE loai_tacdong   AS ENUM
@@ -728,4 +728,5 @@ Dữ liệu demo do người dùng cung cấp: 4 văn bản thật ở bước 1
 | E5 | ⌛ | scripts/embed_all.py code xong; verify + eval mồ côi chờ data thật |
 | V3.1-schema | ✓ | 2026-11-02: pivot kho pháp luật sang model CÂY từ API vbpl. `003_public_cay.sql`: drop toàn bộ public cũ (kho + audit + eval + 5 hàm), dựng `van_ban`/`node`/`tac_dong`/`chunk` + view `v_dieu`/`v_khoan`, khóa = UUID vbpl, FK `van_ban→meta.documents`. doc_api thêm `fetch_cay_noidung` (31572a1d) + `parse_rsc_flight`/`resolve_rsc_refs`; scripts/fetch_cay_dieu.py. §4 PLAN cập nhật; app/ingestion+audit (bám schema cũ) CHỜ viết lại |
 | V3.1-loader | ✓ | 2026-11-02: `store_public.save_cay` (flatten cây→node, sinh chunk node lá, upsert van_ban từ meta) + CLI `crawl_vbpl.py build-cay` + test 5/5. Nạp 13 VB trong crawl_queue: node=4388, chunk=3367, 0 mồ côi |
+| V3.1-phan | ✓ | 2026-11-02: migration 004 thêm cấp `phan` (Part > Chapter) vào enum cap_node; loader map `Part→phan`, prefix 'P', regex "Phần thứ/số"; sửa lỗi level lạ bỏ cả nhánh → nay giữ con. Test 6/6 |
 | V3.1-amend | ⌛ | parse lệnh sửa đổi từ văn bản đi sửa → ghi `tac_dong` (node_dich←node_nguon); chưa làm |
