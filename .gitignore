@@ -16,3 +16,9 @@ data/private/
 .cursor/
 .agent/
 postman/
+
+# scratch outputs tu script fetch (du lieu mau, khong commit)
+/.html
+/cay.json
+/*_66801.json
+/toanvan_66801.html

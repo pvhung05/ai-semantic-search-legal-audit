@@ -126,12 +126,104 @@ audit_rag/
 
 ---
 
-## 4. Schema (`migrations/001_init.sql`)
+## 4. Schema (`migrations/003_public_cay.sql`)
+
+> **v3.1 — kho pháp luật chuyển sang model CÂY lấy từ API vbpl.vn.**
+> `public` được dựng lại từ `003_public_cay.sql`: **một bảng `node` thống nhất** (adjacency
+> list) cho Chương/Mục/Điều/Khoản/Điểm, **khóa = UUID của vbpl** (bỏ id ghép `VB:D5:K2`).
+> `van_ban.id` = **id vbpl trực tiếp** và dùng lại metadata đã crawl ở schema `meta`
+> (`meta.documents`). Liên kết sửa đổi ở **cấp điều khoản** nằm ở `tac_dong`
+> (`node_dich_id ← node_nguon_id`, xuyên văn bản).
+>
+> Các bảng tài liệu/đối chiếu/eval và 5 hàm hiệu lực của v3 cũ (`khoan_hieu_luc_tai`,
+> `ban_hop_nhat`, `van_ban_me_qua_do_thi`…) **đã gỡ** — phần dưới (§4b) giữ nguyên spec cũ
+> làm tham chiếu, **chờ thiết kế lại** bám theo `node`/`tac_dong`. app/ingestion + app/audit
+> hiện trỏ vào bảng cũ nên sẽ viết lại ở giai đoạn sau.
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- ====================== KHO PHÁP LUẬT (nguồn sự thật) ======================
+CREATE TYPE cap_node       AS ENUM ('chuong','muc','dieu','khoan','diem');
+CREATE TYPE trangthai_node AS ENUM
+  ('chua_hieu_luc','con_hieu_luc','het_hieu_luc_mot_phan','het_hieu_luc','bai_bo','khong_xac_dinh');
+CREATE TYPE loai_tacdong   AS ENUM
+  ('sua_doi','bo_sung','bai_bo','thay_the','dinh_chi','huong_dan','thay_cum_tu');
+
+-- ====================== KHO PHÁP LUẬT — MODEL CÂY (nguồn: API vbpl) ======================
+-- Văn bản: dùng lại metadata đã crawl ở meta.documents (không lặp lại)
+CREATE TABLE van_ban (
+  id                text PRIMARY KEY REFERENCES meta.documents(id) ON DELETE CASCADE,  -- = vbpl id
+  so_hieu text, ten text, loai text,
+  ngay_ban_hanh date, ngay_hieu_luc date, ngay_het_hieu_luc date,
+  trang_thai        trangthai_node NOT NULL DEFAULT 'khong_xac_dinh',
+  created_at        timestamptz NOT NULL DEFAULT now()
+);
+
+-- CÂY nội dung: 1 dòng = 1 node (Chương/Mục/Điều/Khoản/Điểm) = đơn vị chunk. Khóa = UUID vbpl.
+CREATE TABLE node (
+  id           text PRIMARY KEY,                               -- UUID node từ API (key/id)
+  van_ban_id   text NOT NULL REFERENCES van_ban(id) ON DELETE CASCADE,
+  parent_id    text REFERENCES node(id) ON DELETE CASCADE,     -- cây cha-con (adjacency list)
+  cap          cap_node NOT NULL,                              -- level: Chapter→chuong … Point→diem
+  ptype        smallint,                                       -- mã cấp gốc vbpl
+  so_thu_tu    text,                                           -- '5','2','a' (parse từ title)
+  tieu_de      text, noi_dung text,                            -- title ; content.content (HTML, node lá)
+  order_index  int, is_leaf boolean NOT NULL DEFAULT false,
+  duong_dan    text,                                           -- 'D5>K2>Da'
+  hieu_luc_tu  date, hieu_luc_den date,                        -- effFrom / effTo
+  trang_thai   trangthai_node NOT NULL DEFAULT 'khong_xac_dinh',
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX node_vb ON node (van_ban_id, order_index);
+CREATE INDEX node_parent ON node (parent_id);
+CREATE INDEX node_tra ON node (van_ban_id, cap, so_thu_tu);
+
+-- TÁC ĐỘNG cấp điều khoản: node bị sửa ← node đi sửa (xuyên văn bản), giữ lịch sử
+CREATE TABLE tac_dong (
+  id               bigserial PRIMARY KEY,
+  node_dich_id     text NOT NULL REFERENCES node(id) ON DELETE CASCADE,   -- Điều/Khoản BỊ tác động
+  node_nguon_id    text REFERENCES node(id) ON DELETE SET NULL,           -- Điều/Khoản ĐI tác động (lệnh)
+  van_ban_nguon_id text NOT NULL REFERENCES van_ban(id) ON DELETE CASCADE,
+  loai             loai_tacdong NOT NULL,
+  ngay_hieu_luc date, cum_tu_cu text, cum_tu_moi text, noi_dung_moi text,
+  nguon_lenh       text,                                                  -- nguyên văn lệnh từ luật sửa
+  tin_cay          text NOT NULL DEFAULT 'can_ra_soat',                   -- xac_nhan | can_ra_soat
+  da_ap_dung       boolean NOT NULL DEFAULT false,
+  created_at       timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX tacdong_dich ON tac_dong (node_dich_id, loai);
+CREATE INDEX tacdong_nguon ON tac_dong (node_nguon_id);
+CREATE INDEX tacdong_vbnguon ON tac_dong (van_ban_nguon_id);
+
+-- CHUNK dẫn xuất cho RAG (tách node dài thành nhiều mẩu khi cần)
+CREATE TABLE chunk (
+  id           bigserial PRIMARY KEY,
+  node_id      text NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+  van_ban_id   text NOT NULL REFERENCES van_ban(id) ON DELETE CASCADE,
+  thu_tu       int NOT NULL DEFAULT 0,
+  text_goc     text NOT NULL, text_embed text, embedding vector(1024),
+  tsv_goc      tsvector GENERATED ALWAYS AS (to_tsvector('simple', text_goc)) STORED,
+  hieu_luc_tu date, hieu_luc_den date, created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX chunk_node ON chunk (node_id);
+CREATE INDEX chunk_vb ON chunk (van_ban_id, hieu_luc_den);
+CREATE INDEX chunk_tsv ON chunk USING gin (tsv_goc);
+
+-- View đọc theo cấp (không mất lợi ích 1 bảng)
+CREATE VIEW v_dieu  AS SELECT id, van_ban_id, parent_id, so_thu_tu AS so_dieu,  tieu_de, noi_dung,
+       order_index, hieu_luc_tu, hieu_luc_den, trang_thai FROM node WHERE cap = 'dieu';
+CREATE VIEW v_khoan AS SELECT id, van_ban_id, parent_id, so_thu_tu AS so_khoan, tieu_de, noi_dung,
+       order_index, hieu_luc_tu, hieu_luc_den, trang_thai FROM node WHERE cap IN ('khoan','diem');
+```
+
+### 4b. Schema v3 cũ — CHỜ THIẾT KẾ LẠI theo `node`/`tac_dong`
+
+> Phần dưới là spec gốc của v3 (tài liệu người dùng, đối chiếu, eval, hàm hiệu lực). Đã gỡ khỏi
+> DB ở migration 003 vì FK trỏ `dieu_luat`/`khoan` cũ. Giữ lại để tham chiếu khi dựng lại: mọi
+> chỗ `dieu_luat.id`/`khoan.id` sẽ thay bằng `node.id`; hàm tra hiệu lực viết lại trên `node`.
+
+```sql
+-- ====================== KHO PHÁP LUẬT v3 CŨ (tham chiếu) ======================
 CREATE TABLE van_ban (
   id               text PRIMARY KEY,            -- 'BLLD-2019-45'
   so_hieu          text NOT NULL UNIQUE,        -- '45/2019/QH14'
@@ -477,11 +569,11 @@ LOG_LEVEL=INFO
 
 ## 6. Quy ước
 
-### 6.1 ID và phiên bản
-- `van_ban.id` do người dùng đặt khi upload hoặc sinh từ số hiệu (`45/2019/QH14` → `QH14-2019-45`).
-- `dieu_luat.id = f"{van_ban_id}:D{so_dieu}"`, `so_dieu` là chuỗi. `khoan.id = f"{dieu_id}:K{so_khoan}"`, Điểm `:D{diem}`.
-- Phiên bản do sửa đổi: id gốc + `@YYYY-MM-DD`. Bản cũ giữ id, đặt `hieu_luc_den`, `thay_boi_id`. Hiển thị bỏ hậu tố: "Điều 54 (sửa đổi bởi NĐ 12/2026, hiệu lực 01/03/2026)".
-- Không bao giờ truy vấn Điều/Khoản mà không có ngày.
+### 6.1 ID và phiên bản (v3.1 — model cây)
+- `van_ban.id` = **id vbpl trực tiếp** (số như `66801` hoặc UUID như `2d8a8130-…`); trùng `meta.documents.id`.
+- `node.id` = **UUID node của vbpl** (trường `key`/`id` trong API cây). Không ghép id thủ công; `so_thu_tu` ('5','2','a') chỉ để sắp xếp/hiển thị, không làm khóa.
+- Quan hệ sửa đổi ở cấp điều khoản ghi vào `tac_dong`: `node_dich_id` (bị sửa) ← `node_nguon_id` (node ra lệnh, thuộc văn bản đi sửa). Một node bị nhiều lần sửa = nhiều dòng `tac_dong` (giữ đủ lịch sử), không version-hóa id.
+- `hieu_luc_tu`/`hieu_luc_den` của node lấy từ `effFrom`/`effTo` của API. Tra Điều/Khoản theo ngày lọc trên hai cột này (hàm tra viết lại trên `node` khi dựng lại §4b).
 
 ### 6.2 Parser (giữ v2, sửa)
 - Điều `^Điều\s+(\d+[a-zđ]?)\s*\.?\s*(.*)$`; Khoản `^(\d+[a-zđ]?)\.\s+`; Điểm `^([a-zđ])\)\s+`; Chương/Mục như v2. Số Điều tăng theo phần số; nhảy/trùng → WARNING, không dừng. Dòng "1." trong ngoặc kép chưa đóng không phải Khoản.
@@ -634,3 +726,6 @@ Dữ liệu demo do người dùng cung cấp: 4 văn bản thật ở bước 1
 | E3 | ✓ | audit/fallback.py — khi ENABLE_FALLBACK=true gọi hybrid tìm ứng viên |
 | E4 | ✓ | parent_docs._tim_vb_qua_truy_hoi(): nguồn `truy_hoi` khi ENABLE_FALLBACK=true |
 | E5 | ⌛ | scripts/embed_all.py code xong; verify + eval mồ côi chờ data thật |
+| V3.1-schema | ✓ | 2026-11-02: pivot kho pháp luật sang model CÂY từ API vbpl. `003_public_cay.sql`: drop toàn bộ public cũ (kho + audit + eval + 5 hàm), dựng `van_ban`/`node`/`tac_dong`/`chunk` + view `v_dieu`/`v_khoan`, khóa = UUID vbpl, FK `van_ban→meta.documents`. doc_api thêm `fetch_cay_noidung` (31572a1d) + `parse_rsc_flight`/`resolve_rsc_refs`; scripts/fetch_cay_dieu.py. §4 PLAN cập nhật; app/ingestion+audit (bám schema cũ) CHỜ viết lại |
+| V3.1-loader | ✓ | 2026-11-02: `store_public.save_cay` (flatten cây→node, sinh chunk node lá, upsert van_ban từ meta) + CLI `crawl_vbpl.py build-cay` + test 5/5. Nạp 13 VB trong crawl_queue: node=4388, chunk=3367, 0 mồ côi |
+| V3.1-amend | ⌛ | parse lệnh sửa đổi từ văn bản đi sửa → ghi `tac_dong` (node_dich←node_nguon); chưa làm |
