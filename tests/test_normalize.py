@@ -1,4 +1,4 @@
-from app.ingestion.normalize import chuan_hoa_dong, chuan_hoa_so_sanh, chuan_hoa_text
+from app.doisanh.ingestion.normalize import chuan_hoa_dong, chuan_hoa_so_sanh, chuan_hoa_text
 
 
 def test_bo_khoang_trang_kep():

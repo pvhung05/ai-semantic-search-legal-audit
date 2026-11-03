@@ -18,11 +18,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.audit import mapping as mapping_mod  # noqa: E402
-from app.audit import tier1 as tier1_mod  # noqa: E402
-from app.audit import tier2 as tier2_mod  # noqa: E402
-from app.audit.segment import DonViSegment  # noqa: E402
-from app.db.session import ket_noi  # noqa: E402
+from app.doisanh.audit import mapping as mapping_mod  # noqa: E402
+from app.doisanh.audit import tier1 as tier1_mod  # noqa: E402
+from app.doisanh.audit import tier2 as tier2_mod  # noqa: E402
+from app.doisanh.audit.segment import DonViSegment  # noqa: E402
+from app.core.db.session import ket_noi  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
 

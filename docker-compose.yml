@@ -12,8 +12,11 @@ services:
     volumes:
       - pg_luatvn_data:/var/lib/postgresql/data
 
-  app:
-    build: .
+  # Service DOI SANH: API + UI + kho public (cong 8010)
+  doisanh:
+    build:
+      context: .
+      dockerfile: Dockerfile.doisanh
     depends_on:
       - db
     environment:
@@ -23,6 +26,18 @@ services:
       LLM_API_KEY: ${LLM_API_KEY:-ollama}
     ports:
       - "8010:8010"
+    volumes:
+      - ./data:/app/data
+
+  # Service CRAWL: cao vbpl.vn -> meta (worker batch; exec lenh CLI khi can)
+  crawl:
+    build:
+      context: .
+      dockerfile: Dockerfile.crawl
+    depends_on:
+      - db
+    environment:
+      DB_URL: postgresql://audit_rag:REDACTED@db:5432/luatvn
     volumes:
       - ./data:/app/data
 

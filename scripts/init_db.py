@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 MIGRATIONS_DIR = ROOT / "migrations"
 
 sys.path.insert(0, str(ROOT))
-from app.config import settings  # noqa: E402
+from app.core.config import settings  # noqa: E402
 
 
 def _da_chay(cur: psycopg.Cursor, ten: str) -> bool:

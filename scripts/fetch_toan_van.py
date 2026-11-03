@@ -30,7 +30,7 @@ import json
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.crawl_vbpl.fetcher import BASE, Fetcher  # noqa: E402
+from app.crawl.fetcher import BASE, Fetcher  # noqa: E402
 
 ACTION_TOAN_VAN = "233848b47c25357313670674c2dc84e482ce54da"
 

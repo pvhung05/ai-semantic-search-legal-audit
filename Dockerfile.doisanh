@@ -1,0 +1,21 @@
+# Service DOI SANH: API + UI + kho public. Khong goi vbpl.vn.
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml ./
+COPY app ./app
+COPY scripts ./scripts
+COPY migrations ./migrations
+
+RUN pip install --no-cache-dir -e ".[dev]"
+
+ENV API_HOST=0.0.0.0 API_PORT=8010
+
+EXPOSE 8010
+
+CMD ["uvicorn", "app.doisanh.api.main:app", "--host", "0.0.0.0", "--port", "8010"]

@@ -2,8 +2,8 @@
 
 Khong bia noi dung luat; text o day la vi du cau truc toi thieu de kiem regex.
 """
-from app.ingestion.parser import parse_van_ban
-from app.models.schemas import VanBanMeta
+from app.doisanh.ingestion.parser import parse_van_ban
+from app.core.models.schemas import VanBanMeta
 
 
 def _meta(ten: str = "Van ban kiem tra", sua_doi: bool = False) -> VanBanMeta:

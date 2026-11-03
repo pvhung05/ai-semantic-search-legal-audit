@@ -6,9 +6,9 @@ from datetime import date
 
 import pytest
 
-from app.db import repo_van_ban as repo
-from app.db.session import ket_noi
-from app.models.schemas import Dieu, Khoan, VanBanMeta, VanBanParsed
+from app.doisanh.db import repo_van_ban as repo
+from app.core.db.session import ket_noi
+from app.core.models.schemas import Dieu, Khoan, VanBanMeta, VanBanParsed
 
 
 @pytest.fixture

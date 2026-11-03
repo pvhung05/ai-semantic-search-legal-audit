@@ -83,6 +83,10 @@ Xóa thư mục `migrations/` cũ; v3 bắt đầu lại từ `001_init.sql`.
 
 ## 3. Cấu trúc project
 
+> **v3.2 — `app/` đã tách thành 2 service + lõi dùng chung** (xem mục 10, dòng V3.2-split):
+> `app/core/` (config, db/session, models, html_text) · `app/crawl/` (ghi `meta`) · `app/doisanh/`
+> (ghi/đọc `public`, đối sánh). Cây dưới đây là bố cục gốc một-service, giữ làm tham chiếu lịch sử.
+
 ```
 audit_rag/
   .env  .env.example  pyproject.toml  README.md  PLAN.md
@@ -730,3 +734,4 @@ Dữ liệu demo do người dùng cung cấp: 4 văn bản thật ở bước 1
 | V3.1-loader | ✓ | 2026-11-02: `store_public.save_cay` (flatten cây→node, sinh chunk node lá, upsert van_ban từ meta) + CLI `crawl_vbpl.py build-cay` + test 5/5. Nạp 13 VB trong crawl_queue: node=4388, chunk=3367, 0 mồ côi |
 | V3.1-phan | ✓ | 2026-11-02: migration 004 thêm cấp `phan` (Part > Chapter) vào enum cap_node; loader map `Part→phan`, prefix 'P', regex "Phần thứ/số"; sửa lỗi level lạ bỏ cả nhánh → nay giữ con. Test 6/6 |
 | V3.1-amend | ⌛ | parse lệnh sửa đổi từ văn bản đi sửa → ghi `tac_dong` (node_dich←node_nguon); chưa làm |
+| V3.2-split | ✓ | 2026-11-03: tách `app/` thành **2 service** (chung repo) + package lõi: `app/core` (config, db/session, models, html_text) · `app/crawl` (ghi meta, nơi duy nhất gọi vbpl.vn; lệnh `fetch-cay`→`meta.document_cay`) · `app/doisanh` (đọc/ghi public, đối sánh; `public_loader.build_cay_tu_meta` + CLI `build-cay` đọc meta→public, không gọi mạng). Migration `005_meta_cay.sql`. 2 Dockerfile + compose. Bất biến: crawl↔doisanh không import lẫn nhau, chỉ qua core. 33/33 test pass |

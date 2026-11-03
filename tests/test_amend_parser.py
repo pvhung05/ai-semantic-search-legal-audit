@@ -1,5 +1,5 @@
-from app.ingestion.amend_parser import parse_lenh_sua_doi
-from app.models.schemas import Dieu, Khoan, VanBanMeta, VanBanParsed
+from app.doisanh.ingestion.amend_parser import parse_lenh_sua_doi
+from app.core.models.schemas import Dieu, Khoan, VanBanMeta, VanBanParsed
 
 
 def _vb(dieu_list: list[Dieu], ten: str = "NĐ sửa đổi 145/2020/NĐ-CP") -> VanBanParsed:

@@ -1,4 +1,4 @@
-from app.ingestion.citation_parser import trich_dan_chieu
+from app.doisanh.ingestion.citation_parser import trich_dan_chieu
 
 
 def test_dan_chieu_noi_bo():

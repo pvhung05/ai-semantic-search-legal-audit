@@ -1,4 +1,4 @@
-from app.audit.segment import segment_du_thao
+from app.doisanh.audit.segment import segment_du_thao
 
 
 def test_du_thao_co_dieu():

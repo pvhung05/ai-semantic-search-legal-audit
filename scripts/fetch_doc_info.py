@@ -24,7 +24,7 @@ if sys.platform == "win32":
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.crawl_vbpl.fetcher import BASE, Fetcher  # noqa: E402
+from app.crawl.fetcher import BASE, Fetcher  # noqa: E402
 
 ACTION_DOC_INFO = "0fb12b3561faa05adec51a82efb3e4f4f427f07b"
 

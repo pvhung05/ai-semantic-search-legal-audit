@@ -38,8 +38,8 @@ if sys.platform == "win32":
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.crawl_vbpl.doc_api import fetch_cay_noidung  # noqa: E402
-from app.crawl_vbpl.fetcher import Fetcher  # noqa: E402
+from app.crawl.doc_api import fetch_cay_noidung  # noqa: E402
+from app.crawl.fetcher import Fetcher  # noqa: E402
 
 
 def _count(nodes: list[dict], acc: dict[str, int]) -> None:

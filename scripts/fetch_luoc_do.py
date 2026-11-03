@@ -35,8 +35,8 @@ if sys.platform == "win32":
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.crawl_vbpl.fetcher import BASE, Fetcher  # noqa: E402
-from app.crawl_vbpl.parser import parse_rsc_payload  # noqa: E402
+from app.crawl.fetcher import BASE, Fetcher  # noqa: E402
+from app.crawl.parser import parse_rsc_payload  # noqa: E402
 
 ACTION_LUOC_DO = "4a3423ce75290ef83a022333ee187acf4d38d3fb"
 

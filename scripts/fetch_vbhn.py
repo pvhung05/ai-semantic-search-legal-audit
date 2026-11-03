@@ -24,8 +24,8 @@ if sys.platform == "win32":
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.crawl_vbpl.fetcher import BASE, Fetcher  # noqa: E402
-from app.crawl_vbpl.parser import parse_rsc_payload  # noqa: E402
+from app.crawl.fetcher import BASE, Fetcher  # noqa: E402
+from app.crawl.parser import parse_rsc_payload  # noqa: E402
 
 ACTION_VBHN = "0932c3801e9e99306fe7e694562e44ba55134662"
 

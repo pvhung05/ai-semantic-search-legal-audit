@@ -1,6 +1,6 @@
 """Test summarize voi LLM mock."""
-from app.ingestion.summarize import _tom_tat_fallback, tom_tat_dieu
-from app.models.schemas import Dieu
+from app.doisanh.ingestion.summarize import _tom_tat_fallback, tom_tat_dieu
+from app.core.models.schemas import Dieu
 
 
 def _dieu(so: str, tieu_de: str, noi_dung: str) -> Dieu:

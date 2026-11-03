@@ -12,8 +12,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.db.session import ket_noi  # noqa: E402
-from app.ingestion.chunks import tao_chunks_cho_van_ban  # noqa: E402
+from app.core.db.session import ket_noi  # noqa: E402
+from app.doisanh.ingestion.chunks import tao_chunks_cho_van_ban  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
 
