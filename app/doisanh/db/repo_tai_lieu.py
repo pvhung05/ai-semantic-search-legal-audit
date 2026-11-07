@@ -1,100 +1,123 @@
-"""Repository tai_lieu + tai_lieu_don_vi + dan_chieu cua tai lieu."""
+"""Repository kho du thao: du_thao (van ban + cay JSON) + du_thao_node (chunk + text_embed + vector).
+
+User chi upload file, khong cung cap metadata. Cay da segment luu nguyen o du_thao.cay (JSON goc);
+du_thao_node la kho chunk de embed + doi sanh (doi xung van_ban -> node/chunk cua kho luat).
+"""
 from __future__ import annotations
 
-import hashlib
 import uuid
-from datetime import date
-from pathlib import Path
+from dataclasses import asdict
 from typing import Any
 
 from psycopg import Connection
+from psycopg.types.json import Json
 
 from app.core.config import settings
+from app.core.models.embedder import embed_batch
+from app.doisanh.audit.segment import KetQuaSegment
 
 
 def sinh_id_tai_lieu() -> str:
     return "TL-" + uuid.uuid4().hex[:8]
 
 
-def hash_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
+def _text_embed(tieu_de: str | None, noi_dung: str) -> str:
+    """Text dua di embed = '<tieu_de>. <noi_dung>' (giong _chunk_embed_text o routes_simple)."""
+    return (tieu_de + ". " + noi_dung) if tieu_de else (noi_dung or "")
 
 
-def luu_file(path: Path, tai_lieu_id: str) -> str:
-    """Chep file vao STORAGE_PATH, tra storage_key."""
-    storage_dir = Path(settings.STORAGE_PATH)
-    storage_dir.mkdir(parents=True, exist_ok=True)
-    key = f"{tai_lieu_id}{path.suffix.lower()}"
-    dest = storage_dir / key
-    dest.write_bytes(path.read_bytes())
-    return key
-
-
-def tao_tai_lieu(
-    conn: Connection,
-    tai_lieu_id: str,
-    ten: str,
-    loai: str,
-    cap_tuong_duong: int | None,
-    ngay_du_kien: date | None,
-    linh_vuc: list[str],
-    can_cu_tho: list[str],
-    co_cau_truc_dieu: bool,
-    storage_key: str | None = None,
-    file_hash: str | None = None,
-    owner_id: str = "demo",
-) -> str:
+def luu_du_thao(conn: Connection, du_thao_id: str, noi_dung: str, seg: KetQuaSegment) -> None:
+    """Luu toan van + cay JSON vao du_thao, va bung tung don vi ra du_thao_node. Idempotent theo id."""
+    cay = {
+        "don_vi": [asdict(dv) for dv in seg.don_vi],
+        "can_cu_tho": seg.can_cu_tho,
+        "co_cau_truc_dieu": seg.co_cau_truc_dieu,
+    }
     with conn.cursor() as cur:
         cur.execute(
-            """INSERT INTO tai_lieu (
-                 id, owner_id, ten, loai, cap_tuong_duong, ngay_du_kien,
-                 linh_vuc, can_cu_tho, co_cau_truc_dieu, storage_key, hash
-               ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-               ON CONFLICT (id) DO UPDATE SET
-                 ten=EXCLUDED.ten, loai=EXCLUDED.loai,
-                 cap_tuong_duong=EXCLUDED.cap_tuong_duong,
-                 ngay_du_kien=EXCLUDED.ngay_du_kien,
-                 linh_vuc=EXCLUDED.linh_vuc,
-                 can_cu_tho=EXCLUDED.can_cu_tho,
-                 co_cau_truc_dieu=EXCLUDED.co_cau_truc_dieu,
-                 storage_key=EXCLUDED.storage_key, hash=EXCLUDED.hash""",
-            (tai_lieu_id, owner_id, ten, loai, cap_tuong_duong, ngay_du_kien,
-             linh_vuc, can_cu_tho, co_cau_truc_dieu, storage_key, file_hash),
+            """INSERT INTO du_thao (id, noi_dung, cay) VALUES (%s,%s,%s)
+               ON CONFLICT (id) DO UPDATE SET noi_dung=EXCLUDED.noi_dung, cay=EXCLUDED.cay""",
+            (du_thao_id, noi_dung, Json(cay)),
         )
-    return tai_lieu_id
-
-
-def luu_don_vi(conn: Connection, don_vi: dict[str, Any]) -> str:
-    with conn.cursor() as cur:
-        cur.execute(
-            """INSERT INTO tai_lieu_don_vi (
-                 id, tai_lieu_id, parent_id, cap, so_dieu, so_khoan, diem, tieu_de,
-                 noi_dung, hash, thu_tu
-               ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-               ON CONFLICT (id) DO UPDATE SET
-                 parent_id=EXCLUDED.parent_id, cap=EXCLUDED.cap,
-                 so_dieu=EXCLUDED.so_dieu, so_khoan=EXCLUDED.so_khoan,
-                 diem=EXCLUDED.diem, tieu_de=EXCLUDED.tieu_de,
-                 noi_dung=EXCLUDED.noi_dung, hash=EXCLUDED.hash,
-                 thu_tu=EXCLUDED.thu_tu""",
-            (don_vi["id"], don_vi["tai_lieu_id"], don_vi.get("parent_id"),
-             don_vi["cap"], don_vi.get("so_dieu"), don_vi.get("so_khoan"),
-             don_vi.get("diem"), don_vi.get("tieu_de"),
-             don_vi["noi_dung"], don_vi["hash"], don_vi["thu_tu"]),
+        # Dung lai node cu (chunk CASCADE) roi nap lai -> idempotent.
+        cur.execute("DELETE FROM du_thao_node WHERE du_thao_id=%s", (du_thao_id,))
+        cur.executemany(
+            """INSERT INTO du_thao_node
+                 (id, du_thao_id, parent_id, cap, so_dieu, so_khoan, diem, tieu_de,
+                  noi_dung, thu_tu, text_embed)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            [(dv.id, du_thao_id, dv.parent_id, dv.cap, dv.so_dieu, dv.so_khoan, dv.diem,
+              dv.tieu_de, dv.noi_dung, dv.thu_tu, _text_embed(dv.tieu_de, dv.noi_dung))
+             for dv in seg.don_vi],
         )
-    return don_vi["id"]
 
 
-def danh_sach_don_vi(conn: Connection, tai_lieu_id: str) -> list[dict[str, Any]]:
+def nhung_du_thao_thieu(conn: Connection, du_thao_id: str, batch_size: int | None = None) -> int:
+    """Sinh embedding cho du_thao_node co embedding IS NULL (tu text_embed). Idempotent.
+
+    Doi xung public_loader.nhung_chunk_thieu cua kho luat.
+    """
+    bs = batch_size or settings.EMBED_BATCH_SIZE
     with conn.cursor() as cur:
         cur.execute(
-            """SELECT id, parent_id, cap, so_dieu, so_khoan, diem, tieu_de, noi_dung, hash, thu_tu
-               FROM tai_lieu_don_vi WHERE tai_lieu_id=%s ORDER BY thu_tu""",
-            (tai_lieu_id,),
+            "SELECT id, text_embed FROM du_thao_node "
+            "WHERE du_thao_id=%s AND embedding IS NULL AND text_embed <> '' ORDER BY thu_tu",
+            (du_thao_id,),
+        )
+        rows = cur.fetchall()
+    da = 0
+    for i in range(0, len(rows), bs):
+        lo = rows[i : i + bs]
+        embs = embed_batch([t for _, t in lo])
+        with conn.cursor() as cur:
+            for (nid, _), emb in zip(lo, embs):
+                if len(emb) != settings.EMBED_DIM:
+                    raise ValueError(f"node {nid}: embedding {len(emb)}d != EMBED_DIM {settings.EMBED_DIM}")
+                emb_str = "[" + ",".join(f"{x:.6f}" for x in emb) + "]"
+                cur.execute("UPDATE du_thao_node SET embedding=%s::vector WHERE id=%s", (emb_str, nid))
+        conn.commit()
+        da += len(lo)
+    return da
+
+
+def doc_du_thao(conn: Connection, du_thao_id: str) -> dict[str, Any] | None:
+    """Thong tin van ban du thao tu du_thao.cay (None neu chua co). Don vi lay o danh_sach_don_vi."""
+    with conn.cursor() as cur:
+        cur.execute("SELECT noi_dung, cay FROM du_thao WHERE id=%s", (du_thao_id,))
+        row = cur.fetchone()
+    if row is None:
+        return None
+    noi_dung, cay = row
+    cay = cay or {}
+    return {
+        "noi_dung": noi_dung,
+        "can_cu_tho": cay.get("can_cu_tho", []),
+        "co_cau_truc_dieu": cay.get("co_cau_truc_dieu", False),
+    }
+
+
+def danh_sach_don_vi(conn: Connection, du_thao_id: str) -> list[dict[str, Any]]:
+    """Don vi du thao tu du_thao_node, kem embedding (text) de /audit dung lai khoi embed lai."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT id, parent_id, cap, so_dieu, so_khoan, diem, tieu_de, noi_dung,
+                      thu_tu, embedding::text AS embedding
+               FROM du_thao_node WHERE du_thao_id=%s ORDER BY thu_tu""",
+            (du_thao_id,),
         )
         cols = [c.name for c in cur.description]
         return [dict(zip(cols, r)) for r in cur.fetchall()]
+
+
+def xoa_du_thao(conn: Connection, du_thao_id: str) -> int:
+    """Xoa 1 du thao (du_thao_node cascade theo FK). Tra so dong du_thao da xoa (0/1)."""
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM du_thao WHERE id=%s", (du_thao_id,))
+        return cur.rowcount
+
+
+def xoa_tat_ca_du_thao(conn: Connection) -> int:
+    """Xoa TAT CA du thao (clear kho rag du thao). Tra so dong da xoa."""
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM du_thao")
+        return cur.rowcount

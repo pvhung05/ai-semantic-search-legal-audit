@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     DB_URL: str
 
-    # IS_LOCAL=true -> dung Qwen local (Ollama); false -> dung Gemini.
+    # IS_LOCAL=true -> dung Qwen local (Ollama); false -> dung Claude.
     IS_LOCAL: bool = True
 
     # Cau hinh Qwen local
@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     LOCAL_LLM_MODEL: str = "qwen3:14b"
     LOCAL_LLM_API_KEY: str = "ollama"
 
-    # Cau hinh Gemini
+    # Cau hinh Gemini (endpoint OpenAI-compatible cua Google; API key = GEMINI_API_KEY)
     GEMINI_LLM_URL: str = "https://generativelanguage.googleapis.com/v1beta/openai"
     GEMINI_LLM_MODEL: str = "gemini-3.5-flash-lite"
     GEMINI_LLM_API_KEY: str = ""
@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     LLM_TEMPERATURE: float = 0.1
     LLM_MAX_TOKENS: int = 4000
     LLM_DISABLE_THINKING: bool = True
+    # Context cho Qwen local (gui qua options.num_ctx cua /api/chat; endpoint /v1 BO QUA num_ctx).
+    LLM_NUM_CTX: int = 16384
     LLM_SONG_SONG: int = 4
 
     @model_validator(mode="after")
@@ -56,6 +58,8 @@ class Settings(BaseSettings):
     EMBED_API_KEY: str = "ollama"
     EMBED_BATCH_SIZE: int = 32
     ENABLE_FALLBACK: bool = False
+    # Tier1 (dan chieu/hieu luc) con bam schema cu, chua port sang node/tac_dong -> mac dinh tat.
+    ENABLE_TIER1: bool = False
 
     HIEU_LUC_MAC_DINH: str = "today"
     AUDIT_CHE_DO_MAC_DINH: str = "cay"
@@ -65,6 +69,11 @@ class Settings(BaseSettings):
     AUDIT_DIFF_NGUONG: float = 0.92
     AUDIT_NGUONG_FALLBACK: float = 0.45
     STORAGE_PATH: Path = Field(default=Path("./data/private"))
+
+    # Rate-limit crawl (giay giua 2 request). robots.txt vbpl khong co Crawl-delay;
+    # ha thap -> nhanh hon nhung rui ro bi chan. Giu 1 luong (khong song song).
+    CRAWL_DELAY_MIN: float = 0.6
+    CRAWL_DELAY_MAX: float = 1
 
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8010

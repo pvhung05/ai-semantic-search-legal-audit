@@ -19,6 +19,11 @@ from .actions import DEFAULT_ACTIONS
 
 log = logging.getLogger(__name__)
 
+# Cot document_content.tsv = GENERATED to_tsvector(noidung). VBHN hop nhat co noidung nhieu MB
+# -> to_tsvector ngon RAM -> Postgres OOM/dong ket noi. Cat phan tsvector o day; full van o
+# noidung_html + raw_html. shortcut: 1M ky tu du cho FTS; nang len neu can.
+_NOIDUNG_MAX = 1_000_000
+
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -50,7 +55,7 @@ def seed_actions(conn: psycopg.Connection) -> int:
     with conn.cursor() as cur:
         for a in DEFAULT_ACTIONS:
             cur.execute(
-                "INSERT INTO meta.action_config(ten, action_id, body_mau, ghi_chu, updated_at) "
+                "INSERT INTO vanban.action_config(ten, action_id, body_mau, ghi_chu, updated_at) "
                 "VALUES (%s, %s, %s, %s, now()) "
                 "ON CONFLICT (ten) DO UPDATE SET action_id = EXCLUDED.action_id, "
                 "body_mau = EXCLUDED.body_mau, ghi_chu = EXCLUDED.ghi_chu, updated_at = now()",
@@ -62,7 +67,7 @@ def seed_actions(conn: psycopg.Connection) -> int:
 
 def get_action_id(conn: psycopg.Connection, ten: str) -> str:
     with conn.cursor() as cur:
-        cur.execute("SELECT action_id FROM meta.action_config WHERE ten = %s", (ten,))
+        cur.execute("SELECT action_id FROM vanban.action_config WHERE ten = %s", (ten,))
         row = cur.fetchone()
     if row:
         return row[0]
@@ -78,7 +83,7 @@ def save_raw(conn: psycopg.Connection, id_ref: str, loai_trang: str,
     blob = zlib.compress(text.encode("utf-8"))
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO meta.raw_html(id_ref, loai_trang, html, fetched_at, http_status) "
+            "INSERT INTO vanban.raw_html(id_ref, loai_trang, html, fetched_at, http_status) "
             "VALUES (%s, %s, %s, %s, %s) "
             "ON CONFLICT (id_ref, loai_trang) DO UPDATE SET html = EXCLUDED.html, "
             "fetched_at = EXCLUDED.fetched_at, http_status = EXCLUDED.http_status",
@@ -99,14 +104,14 @@ def _get_or_create_catalog(
     ma = (ma.strip() or None) if ma else None
 
     if vbpl_id:
-        cur.execute(f"SELECT id FROM meta.{table} WHERE vbpl_id = %s", (vbpl_id,))
+        cur.execute(f"SELECT id FROM danhmuc.{table} WHERE vbpl_id = %s", (vbpl_id,))
         if r := cur.fetchone():
             return r[0]
     if ma:
-        cur.execute(f"SELECT id FROM meta.{table} WHERE ma = %s", (ma,))
+        cur.execute(f"SELECT id FROM danhmuc.{table} WHERE ma = %s", (ma,))
         if r := cur.fetchone():
             return r[0]
-    cur.execute(f"SELECT id FROM meta.{table} WHERE ten = %s LIMIT 1", (ten,))
+    cur.execute(f"SELECT id FROM danhmuc.{table} WHERE ten = %s LIMIT 1", (ten,))
     if r := cur.fetchone():
         return r[0]
 
@@ -119,9 +124,9 @@ def _get_or_create_catalog(
         vals.append(v)
     ph = ", ".join(["%s"] * len(cols))
     cur.execute(
-        f"INSERT INTO meta.{table}({', '.join(cols)}) VALUES ({ph}) "
+        f"INSERT INTO danhmuc.{table}({', '.join(cols)}) VALUES ({ph}) "
         f"ON CONFLICT (ma) DO UPDATE SET ten = EXCLUDED.ten, "
-        f"vbpl_id = COALESCE(EXCLUDED.vbpl_id, meta.{table}.vbpl_id) RETURNING id",
+        f"vbpl_id = COALESCE(EXCLUDED.vbpl_id, danhmuc.{table}.vbpl_id) RETURNING id",
         tuple(vals),
     )
     return cur.fetchone()[0]
@@ -160,16 +165,16 @@ def ensure_stub(cur: psycopg.Cursor, doc_id: str, tieu_de: str | None = None,
     doc_id = str(doc_id).strip()
     if not doc_id:
         return
-    cur.execute("SELECT 1 FROM meta.documents WHERE id = %s", (doc_id,))
+    cur.execute("SELECT 1 FROM vanban.documents WHERE id = %s", (doc_id,))
     if cur.fetchone() is None:
         cur.execute(
-            "INSERT INTO meta.documents(id, so_hieu, tieu_de) VALUES (%s, %s, %s) "
+            "INSERT INTO vanban.documents(id, so_hieu, tieu_de) VALUES (%s, %s, %s) "
             "ON CONFLICT (id) DO NOTHING",
             (doc_id, so_hieu, (tieu_de or f"[vbpl:{doc_id}]").strip()),
         )
     if enqueue_it:
         cur.execute(
-            "INSERT INTO meta.crawl_queue(id_ref) VALUES (%s) ON CONFLICT (id_ref) DO NOTHING",
+            "INSERT INTO vanban.crawl_queue(id_ref) VALUES (%s) ON CONFLICT (id_ref) DO NOTHING",
             (doc_id,),
         )
 
@@ -216,21 +221,21 @@ def upsert_document(conn: psycopg.Connection, info: dict, toan_van_html: str = "
 
         cur.execute(
             """
-            INSERT INTO meta.documents (
+            INSERT INTO vanban.documents (
                 id, so_hieu, tieu_de, loai_vanban_id, coquan_id, nganh_id, chucdanh_id,
                 nguoi_ky, docgroup, ngay_banhanh, ngay_hieuluc, ngay_hethieuluc, ngay_congbo,
                 trangthai, effstatus_code, ghi_chu_apdung, lang,
                 is_consolidated, vbpl_updated_date, nguon_url, created_at, updated_at
             ) VALUES (
                 %s,%s,%s,%s,%s,%s,%s, %s,%s,%s,%s,%s,%s,
-                %s::meta.trangthai_hieuluc,%s,%s,%s, %s,%s,%s, now(), now()
+                %s::vanban.trangthai_hieuluc,%s,%s,%s, %s,%s,%s, now(), now()
             )
             ON CONFLICT (id) DO UPDATE SET
                 so_hieu = EXCLUDED.so_hieu, tieu_de = EXCLUDED.tieu_de,
-                loai_vanban_id = COALESCE(EXCLUDED.loai_vanban_id, meta.documents.loai_vanban_id),
-                coquan_id = COALESCE(EXCLUDED.coquan_id, meta.documents.coquan_id),
-                nganh_id = COALESCE(EXCLUDED.nganh_id, meta.documents.nganh_id),
-                chucdanh_id = COALESCE(EXCLUDED.chucdanh_id, meta.documents.chucdanh_id),
+                loai_vanban_id = COALESCE(EXCLUDED.loai_vanban_id, vanban.documents.loai_vanban_id),
+                coquan_id = COALESCE(EXCLUDED.coquan_id, vanban.documents.coquan_id),
+                nganh_id = COALESCE(EXCLUDED.nganh_id, vanban.documents.nganh_id),
+                chucdanh_id = COALESCE(EXCLUDED.chucdanh_id, vanban.documents.chucdanh_id),
                 nguoi_ky = EXCLUDED.nguoi_ky, docgroup = EXCLUDED.docgroup,
                 ngay_banhanh = EXCLUDED.ngay_banhanh, ngay_hieuluc = EXCLUDED.ngay_hieuluc,
                 ngay_hethieuluc = EXCLUDED.ngay_hethieuluc, ngay_congbo = EXCLUDED.ngay_congbo,
@@ -258,7 +263,7 @@ def upsert_document(conn: psycopg.Connection, info: dict, toan_van_html: str = "
             nid = _get_or_create_catalog(cur, "nganh", mj.get("id"), mj.get("code"), mj.get("name"))
             if nid:
                 cur.execute(
-                    "INSERT INTO meta.document_nganh(document_id, nganh_id) VALUES (%s, %s) "
+                    "INSERT INTO vanban.document_nganh(document_id, nganh_id) VALUES (%s, %s) "
                     "ON CONFLICT DO NOTHING", (doc_id, nid),
                 )
 
@@ -267,12 +272,12 @@ def upsert_document(conn: psycopg.Connection, info: dict, toan_van_html: str = "
             lid = _get_or_create_catalog(cur, "linhvuc", fld.get("id"), fld.get("code"), fld.get("name"))
             if lid:
                 cur.execute(
-                    "INSERT INTO meta.document_linhvuc(document_id, linhvuc_id) VALUES (%s, %s) "
+                    "INSERT INTO vanban.document_linhvuc(document_id, linhvuc_id) VALUES (%s, %s) "
                     "ON CONFLICT DO NOTHING", (doc_id, lid),
                 )
 
         # document_issues (tat ca nguoi ky)
-        cur.execute("DELETE FROM meta.document_issues WHERE document_id = %s", (doc_id,))
+        cur.execute("DELETE FROM vanban.document_issues WHERE document_id = %s", (doc_id,))
         for iss in issues:
             cq = _get_or_create_catalog(
                 cur, "coquan_banhanh", iss.get("agencyId"), iss.get("agencyCode"),
@@ -282,7 +287,7 @@ def upsert_document(conn: psycopg.Connection, info: dict, toan_van_html: str = "
                 cur, "chucdanh", iss.get("jobTitleId"), iss.get("jobTitleCode"), iss.get("jobTitleName"),
             )
             cur.execute(
-                "INSERT INTO meta.document_issues(document_id, coquan_id, chucdanh_id, nguoi_ky, thu_tu) "
+                "INSERT INTO vanban.document_issues(document_id, coquan_id, chucdanh_id, nguoi_ky, thu_tu) "
                 "VALUES (%s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
                 (doc_id, cq, cd, iss.get("personName"), iss.get("orderIndex")),
             )
@@ -290,12 +295,16 @@ def upsert_document(conn: psycopg.Connection, info: dict, toan_van_html: str = "
         # Toan van
         if toan_van_html:
             noidung = parser.html_doc_to_text(toan_van_html)
+            if len(noidung) > _NOIDUNG_MAX:
+                log.warning("doc %s noidung %d ky tu -> cat con %d (tranh OOM tsvector)",
+                            doc_id, len(noidung), _NOIDUNG_MAX)
+                noidung = noidung[:_NOIDUNG_MAX]
             cur.execute(
-                "INSERT INTO meta.document_content(document_id, noidung, noidung_html, file_path, updated_at) "
+                "INSERT INTO vanban.document_content(document_id, noidung, noidung_html, file_path, updated_at) "
                 "VALUES (%s, %s, %s, %s, now()) "
                 "ON CONFLICT (document_id) DO UPDATE SET noidung = EXCLUDED.noidung, "
                 "noidung_html = EXCLUDED.noidung_html, file_path = EXCLUDED.file_path, "
-                "version = meta.document_content.version + 1, updated_at = now()",
+                "version = vanban.document_content.version + 1, updated_at = now()",
                 (doc_id, noidung, toan_van_html, info.get("documentContentFileName")),
             )
     return doc_id
@@ -303,7 +312,7 @@ def upsert_document(conn: psycopg.Connection, info: dict, toan_van_html: str = "
 
 # ---------- quan he (luoc_do + lich_su) ----------
 def _rel_type_id_cache(cur: psycopg.Cursor) -> dict[str, int]:
-    cur.execute("SELECT vbpl_code, id FROM meta.relation_types WHERE vbpl_code IS NOT NULL")
+    cur.execute("SELECT vbpl_code, id FROM danhmuc.relation_types WHERE vbpl_code IS NOT NULL")
     return {code: rid for code, rid in cur.fetchall()}
 
 
@@ -333,7 +342,7 @@ def save_relations(conn: psycopg.Connection, doc_id: str,
     with conn.cursor() as cur:
         rel_ids = _rel_type_id_cache(cur)
         cur.execute(
-            "DELETE FROM meta.document_relations "
+            "DELETE FROM vanban.document_relations "
             "WHERE vanban_tacdong_id = %s OR vanban_bitacdong_id = %s",
             (doc_id, doc_id),
         )
@@ -365,7 +374,7 @@ def _insert_rels(cur, rel_ids, ls_idx, code, items, doc_id, doc_is_tacdong,
             continue
         ls = ls_idx.get(other, {})
         cur.execute(
-            "INSERT INTO meta.document_relations"
+            "INSERT INTO vanban.document_relations"
             "(vanban_tacdong_id, vanban_bitacdong_id, relation_type_id, effect_all_type, "
             " ghi_chu, ngay_hieuluc) VALUES (%s, %s, %s, %s, %s, %s) "
             "ON CONFLICT DO NOTHING",
@@ -373,6 +382,45 @@ def _insert_rels(cur, rel_ids, ls_idx, code, items, doc_id, doc_is_tacdong,
              _parse_dt(ls.get("effFrom"))),
         )
         n += cur.rowcount
+    return n
+
+
+# ---------- tac dong cap dieu khoan (provision-level) ----------
+def save_provision_impacts(conn: psycopg.Connection, doc_id: str,
+                           impacts: list[dict], enqueue_related: bool = True) -> int:
+    """Luu vanban.provision_impacts cho van ban doc_id (bi tac dong).
+
+    Lam moi: DELETE theo target_doc_id roi INSERT lai (giong save_relations).
+    `impacts` = output doc_api.fetch_diem_tac_dong (moi phan tu 1 canh).
+    Bo qua canh co ma_loai khong co trong relation_types (vbpl_code).
+    """
+    doc_id = str(doc_id).strip()
+    n = 0
+    with conn.cursor() as cur:
+        rel_ids = _rel_type_id_cache(cur)  # vbpl_code (str) -> relation_type_id
+        cur.execute("DELETE FROM vanban.provision_impacts WHERE target_doc_id = %s", (doc_id,))
+        for im in impacts:
+            rid = rel_ids.get(str(im.get("ma_loai")))
+            if rid is None:
+                log.warning("ma loai %s khong co trong relation_types, bo canh", im.get("ma_loai"))
+                continue
+            src_doc = im.get("source_doc_id")
+            if src_doc:
+                ensure_stub(cur, src_doc, im.get("source_title"), enqueue_it=enqueue_related)
+            cur.execute(
+                """INSERT INTO vanban.provision_impacts
+                     (target_doc_id, target_provision_id, target_order_index,
+                      source_doc_id, source_provision_id, source_title,
+                      relation_type_id, eff_from, eff_to, content, raw)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT (target_provision_id, source_provision_id, relation_type_id, eff_from)
+                   DO NOTHING""",
+                (doc_id, im["target_provision_id"], im.get("target_order_index"),
+                 src_doc, im.get("source_provision_id"), im.get("source_title"),
+                 rid, _parse_dt(im.get("eff_from")), _parse_dt(im.get("eff_to")),
+                 im.get("content"), Jsonb(im.get("raw"))),
+            )
+            n += cur.rowcount
     return n
 
 
@@ -392,7 +440,7 @@ def apply_lifecycle(conn: psycopg.Connection, doc_id: str, lich_su: list[dict]) 
     if ban_hanh or hieu_luc:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE meta.documents SET ngay_banhanh = COALESCE(ngay_banhanh, %s), "
+                "UPDATE vanban.documents SET ngay_banhanh = COALESCE(ngay_banhanh, %s), "
                 "ngay_hieuluc = COALESCE(ngay_hieuluc, %s) WHERE id = %s",
                 (ban_hanh, hieu_luc, doc_id),
             )
@@ -415,7 +463,7 @@ def save_vbhn(conn: psycopg.Connection, vbhn: list[dict],
                     continue
                 ensure_stub(cur, mid, m.get("title"), m.get("docNum"), enqueue_it=enqueue_related)
                 cur.execute(
-                    "INSERT INTO meta.vbhn_nhom(vbhn_id, thanhvien_id, la_hien_tai) "
+                    "INSERT INTO vanban.vbhn_nhom(vbhn_id, thanhvien_id, la_hien_tai) "
                     "VALUES (%s, %s, %s) ON CONFLICT (vbhn_id, thanhvien_id) "
                     "DO UPDATE SET la_hien_tai = EXCLUDED.la_hien_tai",
                     (vbhn_id, mid, bool(m.get("current"))),
@@ -431,7 +479,7 @@ def enqueue(conn: psycopg.Connection, id_ref: str, slug: str | None = None) -> b
         return False
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO meta.crawl_queue(id_ref, slug) VALUES (%s, %s) "
+            "INSERT INTO vanban.crawl_queue(id_ref, slug) VALUES (%s, %s) "
             "ON CONFLICT (id_ref) DO NOTHING", (id_ref, slug),
         )
         return cur.rowcount > 0
@@ -441,7 +489,7 @@ def take_pending(conn: psycopg.Connection, limit: int,
                  max_retry: int = 3) -> list[tuple[str, str | None]]:
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT id_ref, slug FROM meta.crawl_queue "
+            "SELECT id_ref, slug FROM vanban.crawl_queue "
             "WHERE trang_thai IN ('PENDING','ERROR') AND so_lan_thu < %s "
             "ORDER BY created_at ASC LIMIT %s", (max_retry, limit),
         )
@@ -451,7 +499,7 @@ def take_pending(conn: psycopg.Connection, limit: int,
 def mark_done(conn: psycopg.Connection, id_ref: str) -> None:
     with conn.cursor() as cur:
         cur.execute(
-            "UPDATE meta.crawl_queue SET trang_thai='DONE', cap_nhat=%s, loi=NULL "
+            "UPDATE vanban.crawl_queue SET trang_thai='DONE', cap_nhat=%s, loi=NULL "
             "WHERE id_ref = %s", (_now(), str(id_ref).strip()),
         )
 
@@ -459,7 +507,7 @@ def mark_done(conn: psycopg.Connection, id_ref: str) -> None:
 def mark_error(conn: psycopg.Connection, id_ref: str, err: str) -> None:
     with conn.cursor() as cur:
         cur.execute(
-            "UPDATE meta.crawl_queue SET trang_thai='ERROR', so_lan_thu = so_lan_thu + 1, "
+            "UPDATE vanban.crawl_queue SET trang_thai='ERROR', so_lan_thu = so_lan_thu + 1, "
             "loi = %s, cap_nhat = %s WHERE id_ref = %s",
             (err[:1000], _now(), str(id_ref).strip()),
         )

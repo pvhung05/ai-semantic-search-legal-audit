@@ -40,12 +40,10 @@ def tim_hybrid_tu_text(
         return rows
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT id, van_ban_id, dieu_id FROM chunk WHERE id = ANY(%s)",
+            "SELECT id, van_ban_id FROM chunk WHERE id = ANY(%s)",
             ([r["chunk_id"] for r in rows],),
         )
-        meta = {r[0]: (r[1], r[2]) for r in cur.fetchall()}
+        meta = {r[0]: r[1] for r in cur.fetchall()}
     for r in rows:
-        vb, dieu = meta.get(r["chunk_id"], (None, None))
-        r["van_ban_id"] = vb
-        r["dieu_id"] = dieu
+        r["van_ban_id"] = meta.get(r["chunk_id"])
     return rows

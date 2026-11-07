@@ -69,8 +69,14 @@ TIER2_KHOAN_HE_THONG = HE_THONG_CHUNG + (
     "\nBUOC 1 - TIM CAN CU: Trong cac Khoan me ung vien, co Khoan nao THUC SU dieu chinh dung"
     " van de ma doan du thao dang noi khong? (ung vien chi gan ve ngu nghia, khong phai luc nao"
     " cung la can cu dung)."
+    " Moi ung vien co truong 'phan'/'chuong' (vi tri trong cay van ban): dung CHU DE cua Phan/Chuong"
+    " de xac dinh ung vien co dung mang van de khong; neu chu de Chuong lech han thi thuong khong phai can cu dung."
     "\n   - Neu KHONG co Khoan nao dung van de -> trang_thai = 'chua_xac_dinh'. Dung lai."
     "\n   - Neu CO -> chon Khoan me lien quan nhat lam can cu, sang BUOC 2."
+    "\n   - NOI CAC KHOAN CUNG MOT DIEU/so_hieu: mot hinh thuc/hanh vi neu o khoan nay co the bi"
+    " rang buoc boi THOI HAN/GIOI HAN o khoan khac cung Dieu. Vd 'dang tai cong TTDT' (khoan 2 la"
+    " mot hinh thuc 'cong khai') bi rang buoc boi thoi han cong khai o khoan 1 cung Dieu -> dung"
+    " thoi han do lam can cu, dung ket luan 'chua_xac_dinh' chi vi khong co khoan rieng."
     "\nBUOC 2 - SO SANH voi Khoan me lien quan nhat:"
     "\n   - Neu du thao PHU HOP -> trang_thai = 'hop_le'."
     "\n   - Neu du thao TRAI/SAI -> trang_thai = 'vi_pham'."
@@ -112,6 +118,11 @@ TIER2_KHOAN_HE_THONG = HE_THONG_CHUNG + (
     " ('tren dia ban tinh H'), DIEU KHOAN THI HANH ('... chiu trach nhiem thi hanh'),"
     " HIEU LUC THI HANH ('co hieu luc tu ngay...'). Day la noi dung ky thuat soan thao,"
     " trong tham quyen co quan ban hanh."
+    "\n\nCAN CU DA BI SUA: neu Khoan me mo dau bang khoi '[CAN CU NAY ... DUNG NOI DUNG SAU KHI SUA"
+    " LAM CHUAN]' kem dong 'Noi dung sau khi sua: ...' -> LAY NOI DUNG SAU KHI SUA do lam chuan"
+    " so sanh (uu tien hon ban goc phia duoi). Neu khoi ghi 'DA HET HIEU LUC' (bai bo) -> can cu"
+    " khong con hieu luc; du thao van vien dan/mau thuan voi ban moi -> vi_pham, va neu con can cu"
+    " khac phu hop thi dung can cu do."
     "\n\n'trich_dan' trong can_cu PHAI la nguyen van Khoan me lien quan (khong tom tat)."
 )
 
@@ -159,8 +170,14 @@ def prompt_tier2_khoan(
             '\n{"trang_thai": "vi_pham|hop_le|chua_xac_dinh",'
             ' "can_cu": {"khoan_id": "<id Khoan me lien quan, rong neu chua_xac_dinh>",'
             ' "trich_dan": "<nguyen van Khoan me, rong neu chua_xac_dinh>"},'
+            ' "noi_dung_du_thao": "<CHI khi vi_pham: CHEP CHINH XAC tung chu doan SAI'
+            ' nam trong doan du thao - CHI phan sai thoi, KHONG chep lai ca doan vi dai va thua>",'
             ' "giai_thich": "<ly do ngan gon, neu ro diem khac biet neu vi_pham>",'
-            ' "de_xuat_sua": "<chi dien khi vi_pham>",'
+            ' "de_xuat_sua": "<CHI khi vi_pham: CHINH noi_dung_du_thao cho DUNG luat roi chep nguyen'
+            ' ban DA SUA vao day. Day la CHUOI THAY THE truc tiep cho noi_dung_du_thao (thay snippet'
+            ' sai bang chuoi nay la van ban dung luat). TUYET DOI KHONG viet dang huong dan/menh lenh'
+            ' nhu \'Sua X thanh Y\', \'nen sua...\', \'can thay...\'; chi ghi dung van ban sau khi sua.'
+            ' Vd noi_dung_du_thao=\'tu 13 den 17 nguoi\' -> de_xuat_sua=\'tu 23 den 27 nguoi\'>",'
             ' "tin_cay": 0.0}'
         )},
     ]

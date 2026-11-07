@@ -18,6 +18,18 @@ def test_parse_date():
     assert sp._parse_date("2015-02-05T00:00:00") == date(2015, 2, 5)
     assert sp._parse_date("2026-01-01") == date(2026, 1, 1)
     assert sp._parse_date(None) is None
+
+
+def test_tach_duong_dan():
+    # Diem: dieu 5, khoan 2, diem a
+    assert sp.tach_duong_dan("C1>D5>K2>da") == {"so_dieu": "5", "so_khoan": "2", "diem": "a"}
+    # Khoan la (khong co diem)
+    assert sp.tach_duong_dan("D5>K2") == {"so_dieu": "5", "so_khoan": "2", "diem": None}
+    # Dieu la (khong khoan)
+    assert sp.tach_duong_dan("D12") == {"so_dieu": "12", "so_khoan": None, "diem": None}
+    # So thu tu khuyet ('?') va rong -> bo qua
+    assert sp.tach_duong_dan("D?>K3") == {"so_dieu": None, "so_khoan": "3", "diem": None}
+    assert sp.tach_duong_dan(None) == {"so_dieu": None, "so_khoan": None, "diem": None}
     assert sp._parse_date("") is None
 
 
@@ -68,6 +80,29 @@ def test_flatten_part_la_goc():
     assert [r["cap"] for r in rows] == ["phan", "chuong"]
     assert rows[1]["parent_id"] == "p1"
     assert rows[0]["duong_dan"] == "Pthứ nhất"
+
+
+def test_content_khong_title():
+    # content cap Dieu lap title o dau -> bo title
+    assert sp._content_khong_title("Điều 2. ABC<br>noi dung dieu", "Điều 2. ABC") == "noi dung dieu"
+    # content Khoan khong lap title -> giu nguyen
+    assert sp._content_khong_title("1. noi dung khoan", "Khoản 1") == "1. noi dung khoan"
+    assert sp._content_khong_title(None, "Điều 1") == ""
+
+
+def test_text_embed_ghep_theo_cap():
+    rows = [
+        {"id": "d1", "parent_id": None, "cap": "dieu", "tieu_de": "Điều 1. T",
+         "noi_dung": "Điều 1. T<br>ND dieu", "is_leaf": True},
+        {"id": "k1", "parent_id": "d1", "cap": "khoan", "tieu_de": "Khoản 1",
+         "noi_dung": "1. ND khoan", "is_leaf": True},
+        {"id": "p1", "parent_id": "k1", "cap": "diem", "tieu_de": "Điểm a",
+         "noi_dung": "a) ND diem", "is_leaf": True},
+    ]
+    by_id = {r["id"]: r for r in rows}
+    assert sp._text_embed(rows[0], by_id) == "ND dieu"                       # Dieu: content bo title
+    assert sp._text_embed(rows[1], by_id) == "Điều 1. T\n1. ND khoan"        # Khoan: title Dieu cha + content
+    assert sp._text_embed(rows[2], by_id) == "1. ND khoan\na) ND diem"       # Diem: content Khoan cha + content
 
 
 def test_flatten_level_la_giu_nhanh_con():

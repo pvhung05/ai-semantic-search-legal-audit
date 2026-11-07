@@ -1,4 +1,4 @@
-"""Nap danh muc chuan tu vbpl.vn vao meta.loai_vanban, meta.coquan_banhanh, meta.linhvuc.
+"""Nap danh muc chuan tu vbpl.vn vao danhmuc.loai_vanban, danhmuc.coquan_banhanh, danhmuc.linhvuc.
 
 Dung 2 Server Action:
   'danh_muc' (groupCode = LoaiVanBan | LinhVuc)
@@ -49,7 +49,7 @@ def seed_loai_van_ban(conn: psycopg.Connection, fetcher: Fetcher) -> int:
             if not ma or not ten:
                 continue
             cur.execute(
-                "INSERT INTO meta.loai_vanban(ma, ten, mo_ta) "
+                "INSERT INTO danhmuc.loai_vanban(ma, ten, mo_ta) "
                 "VALUES (%s, %s, %s) "
                 "ON CONFLICT (ma) DO UPDATE SET ten = EXCLUDED.ten",
                 (ma[:30], ten[:100], it.get("shortName")),
@@ -73,7 +73,7 @@ def seed_linh_vuc(conn: psycopg.Connection, fetcher: Fetcher) -> int:
             if not ma or not ten:
                 continue
             cur.execute(
-                "INSERT INTO meta.linhvuc(ma, ten, mo_ta) "
+                "INSERT INTO danhmuc.linhvuc(ma, ten, mo_ta) "
                 "VALUES (%s, %s, %s) "
                 "ON CONFLICT (ma) DO UPDATE SET ten = EXCLUDED.ten",
                 (ma[:50], ten[:255], it.get("nameEn")),
@@ -98,7 +98,7 @@ def seed_co_quan(conn: psycopg.Connection, fetcher: Fetcher) -> int:
             if not ma or not ten:
                 continue
             cur.execute(
-                "INSERT INTO meta.coquan_banhanh(ma, ten, mo_ta) "
+                "INSERT INTO danhmuc.coquan_banhanh(ma, ten, mo_ta) "
                 "VALUES (%s, %s, %s) "
                 "ON CONFLICT (ma) DO UPDATE SET ten = EXCLUDED.ten",
                 (ma[:50], ten[:255], it.get("agencyLevel")),

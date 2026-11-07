@@ -1,24 +1,36 @@
-.venv/
+# Python
 __pycache__/
-*.pyc
-*.pyo
-.pytest_cache/
-.env
+*.py[cod]
 *.egg-info/
 build/
 dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Môi trường ảo & bí mật
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Dữ liệu runtime: kho cào, file upload (STORAGE_PATH), dự thảo, kết quả, báo cáo
 data/
-data/raw/
-data/private/
+
+# IDE / OS / công cụ
 .DS_Store
 .vscode/
 .idea/
 .cursor/
 .agent/
+.claude/settings.local.json
 postman/
 
-# scratch outputs tu script fetch (du lieu mau, khong commit)
-/.html
-/cay.json
-/*_66801.json
-/toanvan_66801.html
+# Output tạm từ script fetch (dữ liệu mẫu, không commit)
+/*.html
+/cay*.json
+/toanvan_*.json
+/*_[0-9]*.json

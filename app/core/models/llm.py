@@ -1,8 +1,9 @@
-"""Client HTTP OpenAI-compatible cho LLM (vd Ollama).
+"""Client HTTP cho LLM.
 
-- Retry 3 lan voi backoff
-- Tat thinking neu LLM_DISABLE_THINKING=true (chen 'nothink' theo Qwen3)
-- Cat ``` truoc parse JSON
+- Local (Ollama): goi endpoint NATIVE /api/chat de tat thinking THAT bang `think:false`
+  va dat `num_ctx` (endpoint /v1 OpenAI-compat BO QUA ca hai -> da kiem chung).
+- Cloud (Gemini/Claude): endpoint /v1 OpenAI-compatible, Bearer auth.
+- Retry 3 lan voi backoff. Cat ``` truoc parse JSON.
 """
 from __future__ import annotations
 
@@ -46,19 +47,56 @@ def goi_chat(
 ) -> str:
     """Goi /chat/completions, tra noi dung dong 1.
 
-    is_local: None -> dung IS_LOCAL mac dinh; true -> Qwen local; false -> Gemini.
+    is_local: None -> dung IS_LOCAL mac dinh; true -> Qwen local; false -> Claude.
     """
+    dung_local = settings.IS_LOCAL if is_local is None else is_local
     url, model_mac_dinh, api_key = settings.cau_hinh_llm(is_local)
-    body: dict[str, Any] = {
-        "model": model or model_mac_dinh,
+    api_key = (api_key or "").strip()
+    if not api_key:
+        raise LoiLLM(
+            "Thieu API key cho LLM (is_local=%s). Dat LOCAL_LLM_API_KEY / "
+            "GEMINI_LLM_API_KEY trong .env roi khoi dong lai service." % dung_local
+        )
+    temp = settings.LLM_TEMPERATURE if temperature is None else temperature
+    max_tok = settings.LLM_MAX_TOKENS if max_tokens is None else max_tokens
+    model_dung = model or model_mac_dinh
+
+    if dung_local:
+        # Ollama NATIVE /api/chat: think=false tat thinking THAT; options.num_ctx an dinh context.
+        # (Endpoint /v1 bo qua ca `think`/`enable_thinking` lan `num_ctx` -> da kiem chung.)
+        base = url.rstrip("/")
+        if base.endswith("/v1"):
+            base = base[:-3].rstrip("/")
+        body: dict[str, Any] = {
+            "model": model_dung,
+            "messages": messages,
+            "stream": False,
+            "think": not settings.LLM_DISABLE_THINKING,
+            "options": {
+                "temperature": temp,
+                "num_predict": max_tok,
+                "num_ctx": settings.LLM_NUM_CTX,
+            },
+        }
+        if extra:
+            body.update(extra)
+        with httpx.Client(timeout=120) as cli:
+            resp = cli.post(f"{base}/api/chat", json=body)
+            resp.raise_for_status()
+            data = resp.json()
+        try:
+            return data["message"]["content"] or ""
+        except KeyError as exc:
+            raise LoiLLM(f"Phan hoi Ollama khong hop le: {data}") from exc
+
+    # Cloud (Gemini/Claude) qua endpoint OpenAI-compatible /v1.
+    body = {
+        "model": model_dung,
         "messages": messages,
-        "temperature": settings.LLM_TEMPERATURE if temperature is None else temperature,
-        "max_tokens": settings.LLM_MAX_TOKENS if max_tokens is None else max_tokens,
+        "temperature": temp,
+        "max_tokens": max_tok,
         "stream": False,
     }
-    # 'chat_template_kwargs' chi dung cho Ollama/vLLM (Qwen3). Gemini/OpenAI khong chap nhan.
-    if settings.LLM_DISABLE_THINKING and "googleapis.com" not in url:
-        body["chat_template_kwargs"] = {"enable_thinking": False}
     if extra:
         body.update(extra)
     with httpx.Client(timeout=120) as cli:

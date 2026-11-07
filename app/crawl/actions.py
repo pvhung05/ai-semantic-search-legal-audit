@@ -1,6 +1,6 @@
 """Server Action IDs mac dinh (sniff ngay 2026-10-30).
 
-Khi vbpl.vn deploy lai, action ID se doi. Luu truoc vao meta.action_config
+Khi vbpl.vn deploy lai, action ID se doi. Luu truoc vao vanban.action_config
 qua seed_actions(); crawler doc config truoc moi POST, neu loi 400/404
 thi can sniff lai.
 """

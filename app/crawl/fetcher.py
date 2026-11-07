@@ -38,9 +38,15 @@ class ActionError(RuntimeError):
     """Server Action tra ve status khac 200 - co the ID da doi."""
 
 
+def _cfg_tu_settings() -> FetchConfig:
+    """FetchConfig mac dinh lay delay tu .env (CRAWL_DELAY_MIN/MAX)."""
+    from app.core.config import settings
+    return FetchConfig(delay_min=settings.CRAWL_DELAY_MIN, delay_max=settings.CRAWL_DELAY_MAX)
+
+
 class Fetcher:
     def __init__(self, cfg: FetchConfig | None = None) -> None:
-        self.cfg = cfg or FetchConfig()
+        self.cfg = cfg or _cfg_tu_settings()
         self.s = requests.Session()
         self.s.headers.update(_DEFAULT_HEADERS)
 

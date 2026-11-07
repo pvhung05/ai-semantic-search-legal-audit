@@ -182,6 +182,31 @@
   .modal .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .modal footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 
+  /* Chat Hoi dap (/ask) */
+  .modal.chat { max-width: 680px; height: 80vh; display: flex; flex-direction: column; }
+  .modal.chat h3 { display: flex; justify-content: space-between; align-items: center; }
+  .chat-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;
+              padding: 6px 2px; margin: 12px 0; }
+  .chat-msg { max-width: 85%; padding: 9px 12px; border-radius: 10px; font-size: 13px;
+              line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
+  .chat-msg.user { align-self: flex-end; background: var(--primary); color: #fff;
+                   border-bottom-right-radius: 3px; }
+  .chat-msg.bot { align-self: flex-start; background: var(--accent); color: var(--text);
+                  border-bottom-left-radius: 3px; }
+  .chat-msg.loading { opacity: 0.7; font-style: italic; }
+  .chat-cc { align-self: flex-start; max-width: 95%; font-size: 12px; }
+  .chat-cc details { background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+                     padding: 6px 10px; }
+  .chat-cc summary { cursor: pointer; color: var(--muted); font-weight: 600; }
+  .chat-cc .cc-item { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+  .chat-cc .cc-item:first-of-type { border-top: none; margin-top: 6px; }
+  .chat-cc .cc-vt { font-weight: 600; color: var(--primary); }
+  .chat-cc blockquote { margin: 4px 0 0; padding-left: 10px; border-left: 3px solid var(--border);
+                        color: var(--muted); }
+  .chat-input { display: flex; gap: 8px; }
+  .modal.chat .chat-input textarea { flex: 1; min-height: 44px; max-height: 120px; resize: vertical;
+                                     font-family: inherit; margin: 0; }
+
   .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 18px;
            background: var(--primary); color: white; border-radius: 6px; z-index: 100;
            box-shadow: 0 4px 12px rgba(30,58,138,0.3); display: none; }
@@ -198,10 +223,11 @@
   </div>
   <nav>
     <div class="llm-switch" title="Chọn LLM dùng cho /ask và /audit">
-      <label id="lbl-gemini" class="active" onclick="setLocal(false)">Gemini</label>
+      <label id="lbl-model public" class="active" onclick="setLocal(false)">model public</label>
       <div class="toggle" id="toggle-llm" onclick="toggleLocal()"></div>
       <label id="lbl-local" onclick="setLocal(true)">model local</label>
     </div>
+    <button class="btn" onclick="openChat()">💬 Hỏi đáp</button>
     <button class="btn" onclick="openLegalModal()">+ Nạp luật</button>
     <button class="btn" onclick="loadLegalList()">Kho luật</button>
   </nav>
@@ -242,7 +268,11 @@
   <section class="pane">
     <div class="pane-head">
       <span>🔍 Kết quả đối chiếu</span>
-      <span id="audit-status" style="font-weight:400; font-size:12px;"></span>
+      <span style="display:flex; align-items:center; gap:10px;">
+        <a class="btn" id="btn-tai-docx" style="display:none; text-decoration:none;"
+           href="#" download>⬇ Tải bản track-change</a>
+        <span id="audit-status" style="font-weight:400; font-size:12px;"></span>
+      </span>
     </div>
     <div class="pane-body" id="audit-view">
       <div class="draft-placeholder">
@@ -306,6 +336,23 @@
   </div>
 </div>
 
+<!-- Modal Hoi dap (/ask) -->
+<div class="modal-mask" id="chat-modal">
+  <div class="modal chat">
+    <h3>💬 Hỏi đáp kho pháp luật
+      <button class="btn" onclick="closeChat()" style="padding:4px 10px;">✕</button>
+    </h3>
+    <div class="chat-log" id="chat-log">
+      <div class="chat-msg bot">Hỏi tôi về nội dung trong kho pháp luật. Câu trả lời sẽ kèm căn cứ [số].</div>
+    </div>
+    <div class="chat-input">
+      <textarea id="chat-input" placeholder="Nhập câu hỏi… (Enter để gửi, Shift+Enter xuống dòng)"
+                onkeydown="chatKey(event)"></textarea>
+      <button class="btn primary" id="chat-send" onclick="sendAsk()">Gửi</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -313,13 +360,13 @@ const API = "";
 let taiLieuId = null;
 let currentTab = "VI_PHAM";
 let auditResult = null;
-let isLocal = false;   // false = Gemini, true = model local
+let isLocal = false;   // false = model public, true = model local
 
 function setLocal(v) {
   isLocal = !!v;
   document.getElementById('toggle-llm').classList.toggle('local', isLocal);
   document.getElementById('lbl-local').classList.toggle('active', isLocal);
-  document.getElementById('lbl-gemini').classList.toggle('active', !isLocal);
+  document.getElementById('lbl-model public').classList.toggle('active', !isLocal);
   try { localStorage.setItem('audit_is_local', isLocal ? '1' : '0'); } catch(e){}
 }
 function toggleLocal() { setLocal(!isLocal); }
@@ -344,6 +391,7 @@ async function uploadDraft(file) {
   fd.append('file', file);
   document.getElementById('draft-status').innerHTML = '<span class="spinner"></span> Đang tải lên...';
   document.getElementById('btn-audit').disabled = true;
+  document.getElementById('btn-tai-docx').style.display = 'none';
   document.getElementById('draft-name').textContent = file.name;
   try {
     const r = await fetch(API + '/upload/draft', { method: 'POST', body: fd });
@@ -451,16 +499,23 @@ async function runAudit() {
   if (!taiLieuId) return;
   document.getElementById('audit-status').innerHTML = '<span class="spinner"></span> Đang đối sánh (có thể mất vài phút)...';
   document.getElementById('btn-audit').disabled = true;
+  document.getElementById('btn-tai-docx').style.display = 'none';
   document.getElementById('audit-view').innerHTML =
     '<div class="draft-placeholder"><div class="spinner"></div><div style="margin-top:12px;">Đang gọi LLM để phân tích từng đơn vị...</div></div>';
   try {
-    const r = await fetch(API + '/audit', {
+    const r = await fetch(API + '/audit/docx', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tai_lieu_id: taiLieuId, top_k: 5, is_local: isLocal })
     });
     if (!r.ok) throw new Error(await r.text());
     auditResult = await r.json();
     document.getElementById('audit-status').textContent = 'Hoàn tất';
+    // Hien nut tai file track-change neu ban goc la .docx (tai_file khac null)
+    const btnTai = document.getElementById('btn-tai-docx');
+    if (auditResult.tai_file) {
+      btnTai.href = auditResult.tai_file;
+      btnTai.style.display = '';
+    }
     renderAudit();
     applyHighlights();
   } catch (e) {
@@ -497,30 +552,28 @@ function renderItem(k, tag) {
   const cls = tag === 'VI_PHAM' ? 'vp' : tag === 'HOP_LE' ? 'hl' : 'cx';
   const label = tag === 'VI_PHAM' ? 'VI PHẠM' : tag === 'HOP_LE' ? 'HỢP LỆ' : 'CHƯA XÁC ĐỊNH';
   const cc = k.can_cu_phap_ly || {};
-  const cc_html = (cc.trich_dan) ? `
+  const cc_nguon = [cc.so_hieu, cc.vi_tri].filter(Boolean).join(' – ');
+  // Phan sau khi sua (neu co) nam trong can cu
+  const sau_sua_html = cc.da_sua ? (
+    cc.da_het_hieu_luc
+      ? `<div class="de-xuat" style="color:var(--vp);">⚠ Đã bị bãi bỏ bởi ${esc(cc.sua_boi || '')}${cc.ngay_hieu_luc ? ` (hiệu lực ${esc(cc.ngay_hieu_luc)})` : ''} — không còn hiệu lực</div>`
+      : `<div class="row-label" style="color:var(--cx); margin-top:6px;">↳ Sau khi sửa (bởi ${esc(cc.sua_boi || '')}${cc.ngay_hieu_luc ? `, hiệu lực ${esc(cc.ngay_hieu_luc)}` : ''})</div>
+         <blockquote style="border-left-color:var(--cx);">${esc(cc.noi_dung_sau_sua || '')}</blockquote>`
+  ) : '';
+  const cc_html = (cc.trich_dan || cc.da_sua) ? `
     <div class="row">
-      <div class="row-label">Căn cứ pháp lý ${cc.so_hieu ? `(${esc(cc.so_hieu)}${cc.ten_van_ban ? ' – ' + esc(cc.ten_van_ban) : ''})` : ''}</div>
-      <blockquote>${esc(cc.trich_dan)}</blockquote>
+      <div class="row-label">Căn cứ pháp lý${cc_nguon ? ` (${esc(cc_nguon)}${cc.ten_van_ban ? ' · ' + esc(cc.ten_van_ban) : ''})` : ''}</div>
+      ${cc.trich_dan ? `<blockquote>${esc(cc.trich_dan)}</blockquote>` : ''}
+      ${sau_sua_html}
     </div>` : '';
-  const tcPercent = Math.round((Number(k.tin_cay) || 0) * 100);
-  const tcColor = tcPercent >= 80 ? 'var(--hl)' : tcPercent >= 50 ? 'var(--cx)' : 'var(--vp)';
-  const tin_cay_html = `
-    <div class="tin-cay" title="Độ tin cậy LLM đánh giá: ${tcPercent}%">
-      <span class="row-label" style="margin:0;">Độ tin cậy</span>
-      <div class="tc-bar"><div class="tc-fill" style="width:${tcPercent}%; background:${tcColor};"></div></div>
-      <span class="tc-num" style="color:${tcColor};">${tcPercent}%</span>
-    </div>`;
   return `<div class="item ${cls}">
-    <div class="vi-tri">${esc(k.vi_tri_du_thao || '')}
-      <span class="label-tag">${label}</span></div>
+    <div class="vi-tri"><span class="label-tag">${label}</span></div>
     <div class="row">
       <div class="row-label">Nội dung dự thảo</div>
       <blockquote>${esc(k.noi_dung_du_thao || '')}</blockquote>
     </div>
     ${cc_html}
-    ${k.giai_thich ? `<div class="giai-thich">${esc(k.giai_thich)}</div>` : ''}
     ${k.de_xuat_sua ? `<div class="de-xuat"><strong>Đề xuất sửa:</strong> ${esc(k.de_xuat_sua)}</div>` : ''}
-    ${tin_cay_html}
   </div>`;
 }
 
@@ -536,6 +589,73 @@ function esc(s) {
 /* ===== Nạp luật modal ===== */
 function openLegalModal() { document.getElementById('legal-modal').classList.add('open'); }
 function closeLegalModal() { document.getElementById('legal-modal').classList.remove('open'); }
+
+// ---- Hoi dap (/ask) ----
+function openChat() {
+  document.getElementById('chat-modal').classList.add('open');
+  document.getElementById('chat-input').focus();
+}
+function closeChat() { document.getElementById('chat-modal').classList.remove('open'); }
+function chatKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAsk(); } }
+
+function chatAppend(html) {
+  const log = document.getElementById('chat-log');
+  log.insertAdjacentHTML('beforeend', html);
+  log.scrollTop = log.scrollHeight;
+  return log.lastElementChild;
+}
+
+function renderCanCu(list) {
+  if (!list || !list.length) return '';
+  const items = list.map(c => {
+    const vt = [c.so_hieu, c.so_dieu && 'Điều ' + c.so_dieu, c.so_khoan && 'Khoản ' + c.so_khoan,
+                c.diem && 'Điểm ' + c.diem].filter(Boolean).join(', ');
+    const s = c.da_sua;
+    let td = '';
+    if (s) {
+      const hau = s.ngay_hieu_luc ? ` (hiệu lực ${esc(s.ngay_hieu_luc)})` : '';
+      td = s.da_het_hieu_luc
+        ? `<div style="color:var(--vp); margin-top:4px;">⚠ Đã bị bãi bỏ bởi ${esc(s.nguon || '')}${hau} — không còn hiệu lực</div>`
+        : `<div style="color:var(--cx); margin-top:4px;">⚠ Đã bị sửa đổi bởi ${esc(s.nguon || '')}${hau}</div>`
+          + (s.noi_dung_sau_sua ? `<div class="cc-vt" style="color:var(--cx); margin-top:3px;">↳ Sau khi sửa</div><blockquote style="border-left-color:var(--cx);">${esc(s.noi_dung_sau_sua)}</blockquote>` : '');
+    }
+    return `<div class="cc-item"><span class="cc-vt">[${c.so_tt}] ${esc(vt)}</span>`
+      + (c.ten_van_ban ? ` · <span style="color:var(--muted)">${esc(c.ten_van_ban)}</span>` : '')
+      + (c.trich_dan ? `<blockquote>${esc(c.trich_dan)}</blockquote>` : '')
+      + td
+      + `</div>`;
+  }).join('');
+  return `<div class="chat-cc"><details><summary>${list.length} căn cứ</summary>${items}</details></div>`;
+}
+
+async function sendAsk() {
+  const inp = document.getElementById('chat-input');
+  const q = inp.value.trim();
+  if (!q) return;
+  const btn = document.getElementById('chat-send');
+  inp.value = '';
+  chatAppend(`<div class="chat-msg user">${esc(q)}</div>`);
+  btn.disabled = true;
+  const loading = chatAppend(`<div class="chat-msg bot loading">Đang tra cứu…</div>`);
+  try {
+    const r = await fetch(API + '/ask', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cau_hoi: q, top_k: 8, is_local: isLocal }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    loading.remove();
+    chatAppend(`<div class="chat-msg bot">${esc(d.tra_loi || '(không có trả lời)')}</div>`);
+    const cc = renderCanCu(d.can_cu);
+    if (cc) chatAppend(cc);
+  } catch (e) {
+    loading.remove();
+    chatAppend(`<div class="chat-msg bot">⚠ Lỗi: ${esc(e.message)}</div>`);
+  } finally {
+    btn.disabled = false;
+    inp.focus();
+  }
+}
 
 async function uploadLegal() {
   const file = document.getElementById('legal-file').files[0];

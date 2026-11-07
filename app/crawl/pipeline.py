@@ -12,11 +12,16 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
+from datetime import date, timedelta
 
 import psycopg
 
 from . import doc_api, parser, store
 from .fetcher import BASE, Fetcher
+
+# vbpl chan phan trang sau ~6500 (lat tiep tra rong du total ~57k). Khoang ngay nao co
+# total > nguong nay -> tu chia doi de moi mang lat het duoc.
+NGUONG_TRAN = 6000
 
 log = logging.getLogger(__name__)
 
@@ -32,8 +37,14 @@ class CrawlResult:
 
 
 def discover_from_list(conn: psycopg.Connection, fetcher: Fetcher,
-                       page: int = 1, page_size: int = 100) -> int:
-    """Goi action 'list' lay 1 trang danh sach van ban TW -> enqueue."""
+                       page: int = 1, page_size: int = 100,
+                       issue_from: str | None = None, issue_to: str | None = None) -> int:
+    """Goi action 'list' lay 1 trang danh sach van ban TW -> enqueue.
+
+    issue_from/issue_to: loc theo ngay ban hanh (chuoi truyen thang xuong filter vbpl) de
+    chia nho truy vat, VUOT TRAN phan trang ~6500 cua vbpl (tong that ~57k). Format can
+    kiem chung voi API that (thu 'dd/mm/yyyy' hoac ISO) - xem log total doi khong.
+    """
     action = store.get_action_id(conn, "list")
     body = json.dumps([{
         "pageNumber": page, "pageSize": page_size, "keyword": "$undefined",
@@ -41,21 +52,48 @@ def discover_from_list(conn: psycopg.Connection, fetcher: Fetcher,
         "documentName": "$undefined", "docNum": "$undefined", "docType": "$undefined",
         "majorTypeIds": "$undefined", "fieldTypeIds": "$undefined",
         "agencyIds": "$undefined", "effStatus": "$undefined", "status": "$undefined",
-        "issueDateFrom": "$undefined", "issueDateTo": "$undefined",
+        "issueDateFrom": issue_from or "$undefined", "issueDateTo": issue_to or "$undefined",
         "administrativeUnit": "$undefined", "agencyLevel": "TRUNG_UONG",
         "documentType": "$undefined", "optionDoc": "all", "matchMode": "all_words",
     }], ensure_ascii=False)
     r = fetcher.rsc(action, body, referer=BASE + "/van-ban/trung-uong")
     store.save_raw(conn, f"list_p{page}", "rsc_list", r.text, r.status_code)
     items = parser.parse_list_items(r.text)
+    total = parser.parse_list_total(r.text)
     added = 0
     for it in items:
         id_ref, slug = parser.extract_id_from_list_item(it)
         if id_ref and store.enqueue(conn, id_ref, slug):
             added += 1
     conn.commit()
-    log.info("discover page %d: %d items, %d moi", page, len(items), added)
-    return added
+    log.info("discover page %d: %d items, %d moi (vbpl bao total=%s)",
+             page, len(items), added, total)
+    return len(items), total   # (so item trang; tong vbpl bao). 0 item = het danh sach.
+
+
+def _iso(d: date) -> str:
+    """Format ngay cho filter issueDate cua vbpl (vd '2023-01-01T00:00:00')."""
+    return d.strftime("%Y-%m-%dT00:00:00")
+
+
+def discover_khoang(conn: psycopg.Connection, fetcher: Fetcher,
+                    d1: date, d2: date, page_size: int = 100) -> None:
+    """Enqueue moi VB co ngay ban hanh trong [d1, d2]. Neu total > NGUONG_TRAN va con chia
+    duoc -> tach doi khoang (de qui) cho tung mang lat het, vuot tran phan trang cua vbpl."""
+    page = 1
+    while True:
+        n_items, total = discover_from_list(conn, fetcher, page, page_size,
+                                            issue_from=_iso(d1), issue_to=_iso(d2))
+        if page == 1 and total and total > NGUONG_TRAN and d1 < d2:
+            mid = d1 + (d2 - d1) // 2
+            log.info("discover khoang %s..%s total=%d > %d -> chia doi tai %s",
+                     d1, d2, total, NGUONG_TRAN, mid)
+            discover_khoang(conn, fetcher, d1, mid, page_size)
+            discover_khoang(conn, fetcher, mid + timedelta(days=1), d2, page_size)
+            return
+        if n_items == 0:
+            return
+        page += 1
 
 
 def crawl_one(conn: psycopg.Connection, fetcher: Fetcher,

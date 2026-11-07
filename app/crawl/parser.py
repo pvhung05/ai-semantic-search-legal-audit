@@ -170,6 +170,14 @@ def parse_list_items(rsc_text: str) -> list[dict]:
     return items if isinstance(items, list) else []
 
 
+def parse_list_total(rsc_text: str) -> int | None:
+    """Tong so ban ghi vbpl bao cho truy van 'list' (de biet con nhieu hon so da enqueue)."""
+    payload = parse_rsc_payload(rsc_text)
+    if isinstance(payload, dict) and isinstance(payload.get("total"), int):
+        return payload["total"]
+    return None
+
+
 def extract_id_from_list_item(item: dict) -> tuple[str, str | None]:
     """Tra ve (id_ref, slug). id_ref la string ID tu vbpl (so hoac UUID)."""
     id_ref = str(item.get("id") or "").strip()

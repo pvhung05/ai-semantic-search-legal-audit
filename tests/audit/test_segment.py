@@ -29,6 +29,20 @@ def test_du_thao_co_dieu():
     assert any("Nội dung" in (d.tieu_de or "") for d in diem_list)
 
 
+def test_id_duy_nhat_khi_lap_so_khoan():
+    # Du thao trich lai nguyen van -> cung "Dieu 1" + "Khoan 1" xuat hien 2 lan.
+    # Moi don vi phai co id duy nhat (PK du_thao_node), khong duoc dup.
+    text = (
+        "Điều 1. Phạm vi\n"
+        "1. Noi dung A.\n"
+        "Điều 1. Phạm vi (trich lai)\n"
+        "1. Noi dung B.\n"
+    )
+    kq = segment_du_thao(text, "TL-dup")
+    ids = [dv.id for dv in kq.don_vi]
+    assert len(ids) == len(set(ids)), f"id bi trung: {ids}"
+
+
 def test_du_thao_khong_dieu():
     text = (
         "I. Quy định chung\n"
@@ -46,3 +60,38 @@ def test_du_thao_khong_dieu():
     # Tieu de muc duoc gan vao moi doan
     tieu_des = {dv.tieu_de for dv in kq.don_vi}
     assert tieu_des == {"Quy định chung", "Thực hiện"}
+
+
+def test_chuong_muc_khong_lam_ban_noi_dung():
+    """Header Chuong/Muc giua cac Dieu: khong dinh vao noi dung Khoan truoc,
+    va chuong duoc gan dung cho tung don vi."""
+    text = (
+        "Chương I. QUY ĐỊNH CHUNG\n"
+        "Điều 1. Phạm vi\n"
+        "1. Noi dung khoan mot.\n"
+        "Chương II. HÀNH VI BỊ CẤM\n"
+        "Mục 1. Chung\n"
+        "Điều 2. Cấm\n"
+        "1. Noi dung khoan hai.\n"
+    )
+    kq = segment_du_thao(text, "TL-c")
+    blob = " ".join(dv.noi_dung for dv in kq.don_vi)
+    assert "Chương" not in blob and "Mục" not in blob  # header khong lot vao noi dung
+    by_khoan = {(dv.so_dieu, dv.so_khoan): dv for dv in kq.don_vi}
+    assert by_khoan[("1", "1")].chuong == "I"
+    assert by_khoan[("2", "1")].chuong == "II"
+    assert by_khoan[("1", "1")].noi_dung == "Noi dung khoan mot."
+
+
+def test_bo_quoc_hieu_tieu_ngu():
+    """Block ky cuoi VB (quoc hieu/tieu ngu/dia danh-ngay) khong tao chunk."""
+    text = (
+        "I. Quy định chung\n"
+        "6. Chánh án chịu trách nhiệm tổ chức thực hiện.\n"
+        "CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM\n"
+        "Độc lập - Tự do - Hạnh phúc\n"
+        "Hà Nội, ngày tháng 10 năm 2026\n"
+    )
+    blob = " ".join(dv.noi_dung for dv in segment_du_thao(text, "TL-x").don_vi)
+    assert "Chánh án" in blob
+    assert "CỘNG" not in blob and "Độc lập" not in blob and "Hà Nội" not in blob

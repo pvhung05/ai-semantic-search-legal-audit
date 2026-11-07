@@ -1,0 +1,30 @@
+# Dependencies de chay audit-legal (Python >= 3.10).
+# Version pin theo moi truong dang chay OK (sinh tu .venv hien tai).
+#
+# Cach dung o may/moi truong khac:
+#   python -m venv .venv && . .venv/Scripts/activate   (Windows: .venv\Scripts\activate)
+#   pip install -r requirements.txt
+#   # chay tu thu muc goc repo: python -m app.crawl.cli / app.doisanh.cli / uvicorn ...
+#   # (hoac `pip install -e .` neu muon cai project nhu package)
+#
+# Ngoai ra can: PostgreSQL 16 + extension pgvector; Ollama (LLM/embed local) hoac API cloud.
+
+psycopg[binary,pool]==3.2.9
+pgvector==0.4.1
+pydantic==2.13.4
+pydantic-settings==2.10.1
+fastapi==0.142.2
+uvicorn[standard]==0.35.0
+python-multipart==0.0.20
+python-docx==1.2.0
+PyMuPDF==1.28.0
+beautifulsoup4==4.15.0
+httpx==0.28.1
+requests==2.34.2
+tenacity==9.1.4
+rapidfuzz==3.14.5
+rich==15.0.0
+
+# --- Dev/test (tuy chon, bo comment neu can chay pytest) ---
+# pytest==9.1.1
+# pytest-asyncio>=0.23

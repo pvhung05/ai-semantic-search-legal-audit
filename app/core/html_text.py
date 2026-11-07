@@ -1,7 +1,7 @@
 """Tien ich chuyen HTML (toan van Word tu vbpl.vn) -> text thuan.
 
 Dung chung boi service crawl (parse noi dung meta) va service doi sanh
-(sinh chunk tu public.node). Khong phu thuoc vao bat ky service nao.
+(sinh chunk tu vanban.node). Khong phu thuoc vao bat ky service nao.
 """
 from __future__ import annotations
 

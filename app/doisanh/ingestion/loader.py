@@ -44,4 +44,7 @@ def doc_file(path: Path) -> str:
         return doc_docx(path)
     if ext == ".pdf":
         return doc_pdf(path)
-    raise RuntimeError(f"Khong ho tro duoi file: {ext}")
+    if ext == ".doc":
+        raise RuntimeError("File .doc (Word cu) khong doc truc tiep duoc. "
+                           "Hay mo bang Word/LibreOffice roi Save As .docx hoac .pdf.")
+    raise RuntimeError(f"Khong ho tro duoi file: {ext} (chi nhan .docx, .pdf, .txt)")

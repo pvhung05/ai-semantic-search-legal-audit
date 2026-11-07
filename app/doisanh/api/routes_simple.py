@@ -4,14 +4,18 @@ from __future__ import annotations
 import concurrent.futures
 import json
 import logging
+import re
+import shutil
 import tempfile
 from datetime import date
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from app.doisanh.audit.docx_track import danh_dau_vi_pham
 from app.doisanh.audit.prompts import prompt_tier2_khoan
 from app.doisanh.audit.segment import segment_du_thao
 from app.doisanh.audit.tier1 import chay_tier1
@@ -22,11 +26,21 @@ from app.doisanh.ingestion.loader import doc_file
 from app.doisanh.ingestion.pipeline import nap_van_ban
 from app.core.models.llm import goi_json
 from app.core.models.schemas import VanBanMeta
+from app.doisanh.public_loader import tac_dong_tom_tat
 from app.doisanh.qa.chat import hoi_dap
-from app.doisanh.retrieval.hybrid import tim_hybrid_tu_text
+from app.doisanh.retrieval.can_cu import nap_khoan_ung_vien
+from app.doisanh.retrieval.hybrid import tim_hybrid, tim_hybrid_tu_text
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["simple"])
+
+
+def _parse_vec(s: str | None) -> list[float] | None:
+    """pgvector tra ve dang text '[0.1,0.2,...]' -> list[float]. None neu rong."""
+    if not s:
+        return None
+    s = s.strip().strip("[]")
+    return [float(x) for x in s.split(",")] if s else None
 
 
 # ============================================================
@@ -36,7 +50,7 @@ class AskRequest(BaseModel):
     cau_hoi: str = Field(..., min_length=1, max_length=2000)
     top_k: int = Field(8, ge=1, le=20)
     is_local: Optional[bool] = Field(
-        None, description="None=theo .env; true=Qwen local; false=Gemini",
+        None, description="None=theo .env; true=Qwen local; false=Claude",
     )
 
 
@@ -57,26 +71,23 @@ def ask(req: AskRequest) -> dict:
 def danh_sach_legal(con_hieu_luc: bool = True) -> list[dict]:
     """Tra ve danh sach VB trong kho de nguoi dung chon van_ban_me_ids cho /audit."""
     ngay = date.today()
+    dem_dieu = ("(SELECT COUNT(*) FROM node n WHERE n.van_ban_id=v.id AND n.cap='dieu') AS so_dieu")
     with ket_noi() as conn, conn.cursor() as cur:
         if con_hieu_luc:
             cur.execute(
-                """SELECT v.id, v.so_hieu, v.ten, v.loai, v.cap, v.linh_vuc,
-                          v.ngay_hieu_luc, v.ngay_het_hieu_luc,
-                          (SELECT COUNT(*) FROM khoan k
-                           WHERE k.van_ban_id=v.id AND k.trang_thai<>'bai_bo') AS so_khoan
-                   FROM van_ban v
-                   WHERE (v.ngay_het_hieu_luc IS NULL OR v.ngay_het_hieu_luc > %s)
-                     AND (v.ngay_hieu_luc IS NULL OR v.ngay_hieu_luc <= %s)
-                   ORDER BY v.cap, v.so_hieu""",
+                f"""SELECT v.id, v.so_hieu, v.ten, v.loai,
+                           v.ngay_hieu_luc, v.ngay_het_hieu_luc, {dem_dieu}
+                    FROM van_ban v
+                    WHERE (v.ngay_het_hieu_luc IS NULL OR v.ngay_het_hieu_luc > %s)
+                      AND (v.ngay_hieu_luc IS NULL OR v.ngay_hieu_luc <= %s)
+                    ORDER BY v.so_hieu""",
                 (ngay, ngay),
             )
         else:
             cur.execute(
-                """SELECT v.id, v.so_hieu, v.ten, v.loai, v.cap, v.linh_vuc,
-                          v.ngay_hieu_luc, v.ngay_het_hieu_luc,
-                          (SELECT COUNT(*) FROM khoan k
-                           WHERE k.van_ban_id=v.id AND k.trang_thai<>'bai_bo') AS so_khoan
-                   FROM van_ban v ORDER BY v.cap, v.so_hieu""",
+                f"""SELECT v.id, v.so_hieu, v.ten, v.loai,
+                           v.ngay_hieu_luc, v.ngay_het_hieu_luc, {dem_dieu}
+                    FROM van_ban v ORDER BY v.so_hieu""",
             )
         cols = [c.name for c in cur.description]
         return [dict(zip(cols, r)) for r in cur.fetchall()]
@@ -114,6 +125,34 @@ def _chunk_embed_text(dv) -> str:
     return (dv.tieu_de + ". " + dv.noi_dung) if dv.tieu_de else (dv.noi_dung or "")
 
 
+_DRAFT_DIR = settings.STORAGE_PATH / "drafts"              # ban goc du thao (giu ten upload)
+_OUTPUT_DIR = settings.STORAGE_PATH.parent / "track_changes"  # = data/track_changes: ban da track-change
+_HAU_TO_TC = "_track_changes"
+
+
+def _luu_file_goc(tai_lieu_id: str, src: Path, ten_goc: str | None) -> None:
+    """Luu ban goc giu nguyen TEN FILE upload (de dat ten ban track-change sau)."""
+    folder = _DRAFT_DIR / tai_lieu_id
+    folder.mkdir(parents=True, exist_ok=True)
+    ten = Path(ten_goc or f"du_thao{src.suffix}").name
+    shutil.copy(src, folder / ten)
+
+
+def _file_goc(tai_lieu_id: str) -> Path | None:
+    """File goc du thao da luu luc upload (moi folder chi co 1 file).
+
+    Output track-change nam o _OUTPUT_DIR (thu muc khac), nen o day khong can
+    loai tru *_track_changes: cu tra file dau tien tim thay.
+    """
+    folder = _DRAFT_DIR / tai_lieu_id
+    if not folder.is_dir():
+        return None
+    for f in folder.iterdir():
+        if f.is_file():
+            return f
+    return None
+
+
 @router.post("/upload/draft")
 async def upload_draft(
     file: UploadFile = File(..., description="PDF/DOCX/TXT du thao"),
@@ -125,30 +164,18 @@ async def upload_draft(
         tmp.write(await file.read())
         tmp_path = Path(tmp.name)
     try:
-        text = doc_file(tmp_path)
+        try:
+            text = doc_file(tmp_path)
+        except RuntimeError as exc:
+            raise HTTPException(400, str(exc)) from exc
         tai_lieu_id = rt.sinh_id_tai_lieu()
-        file_hash = rt.hash_file(tmp_path)
-        storage_key = rt.luu_file(tmp_path, tai_lieu_id)
+        _luu_file_goc(tai_lieu_id, tmp_path, file.filename)   # giu ban goc + ten de track-change sau
         seg = segment_du_thao(text, tai_lieu_id)
         with ket_noi() as conn:
-            rt.tao_tai_lieu(
-                conn, tai_lieu_id,
-                ten=file.filename or tai_lieu_id,
-                loai="khac", cap_tuong_duong=None,
-                ngay_du_kien=date.today(),
-                linh_vuc=[],
-                can_cu_tho=seg.can_cu_tho,
-                co_cau_truc_dieu=seg.co_cau_truc_dieu,
-                storage_key=storage_key, file_hash=file_hash,
-            )
-            for dv in seg.don_vi:
-                rt.luu_don_vi(conn, {
-                    "id": dv.id, "tai_lieu_id": tai_lieu_id, "parent_id": dv.parent_id,
-                    "cap": dv.cap, "so_dieu": dv.so_dieu, "so_khoan": dv.so_khoan,
-                    "diem": dv.diem, "tieu_de": dv.tieu_de,
-                    "noi_dung": dv.noi_dung, "hash": dv.hash, "thu_tu": dv.thu_tu,
-                })
+            rt.luu_du_thao(conn, tai_lieu_id, text, seg)
             conn.commit()
+            # Sinh embedding cho tung don vi du thao (idempotent, commit theo batch).
+            rt.nhung_du_thao_thieu(conn, tai_lieu_id)
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -181,121 +208,8 @@ class AuditRequest(BaseModel):
         description="Tuy chon. Neu co: chi tim trong cac VB me nay. Neu rong: tim toan kho.",
     )
     is_local: Optional[bool] = Field(
-        None, description="None=theo .env; true=Qwen local; false=Gemini",
+        None, description="None=theo .env; true=Qwen local; false=Claude",
     )
-
-
-def _loai_rang_buoc(text: str) -> list[str]:
-    """Nhan dien loai rang buoc so lieu trong Khoan me bang keyword (rule, truoc LLM).
-
-    - san: muc toi thieu (du thao thap hon -> vi pham)
-    - tran: muc toi da (du thao cao hon -> vi pham)
-    - co_dinh: con so co dinh (du thao khac -> vi pham)
-    - trao_quyen: luat trao quyen tu quyet/thoa thuan (du thao chon muc cu the -> hop le)
-    """
-    t = (text or "").lower()
-    kq: list[str] = []
-    if any(k in t for k in ("ít nhất", "tối thiểu", "không thấp hơn", "không ít hơn", "không dưới")):
-        kq.append("san")
-    if any(k in t for k in ("không quá", "tối đa", "không vượt quá", "không được quá",
-                            "không nhiều hơn", "không cao hơn")):
-        kq.append("tran")
-    if any(k in t for k in ("do ", "có thể thỏa thuận", "theo thỏa thuận",
-                            "hai bên thỏa thuận", "tự quyết định", "do các bên")):
-        kq.append("trao_quyen")
-    return kq or ["khong_ro"]
-
-
-def _nap_khoan_ung_vien(conn, chunk_ids: list[str], diem_rrf: dict[str, float]) -> list[dict]:
-    """Gom cac chunk ve don vi me (Khoan me, hoac Dieu neu khong chia Khoan),
-    khu trung, dung lai NGUYEN Khoan (cau dan + moi diem a/b/c/d) de LLM doc du ngu canh.
-    diem_rrf cua moi don vi = max cua cac chunk thanh phan.
-    """
-    if not chunk_ids:
-        return []
-    with conn.cursor() as cur:
-        cur.execute(
-            """SELECT c.id, c.khoan_id, c.dieu_id, k.parent_id, k.diem,
-                      v.id, v.so_hieu, v.ten, d.so_dieu, d.tieu_de, d.noi_dung
-               FROM chunk c
-               JOIN van_ban v ON v.id = c.van_ban_id
-               LEFT JOIN dieu_luat d ON d.id = c.dieu_id
-               LEFT JOIN khoan k ON k.id = c.khoan_id
-               WHERE c.id = ANY(%s)""",
-            (chunk_ids,),
-        )
-        rows = cur.fetchall()
-
-    # Gom theo don vi me: neu chunk la Diem -> Khoan me (parent_id); neu Khoan -> chinh no;
-    # neu Dieu khong Khoan -> Dieu.
-    units: dict[str, dict] = {}
-    khoan_me_ids: set[str] = set()
-    for (cid, kid, did, parent_id, diem, vb_id, so_hieu, ten_vb,
-         so_dieu, tieu_de_dieu, dieu_nd) in rows:
-        rrf = diem_rrf.get(cid, 0.0)
-        if kid:
-            unit_id = parent_id or kid
-            kind = "khoan"
-            khoan_me_ids.add(unit_id)
-        else:
-            unit_id = did or cid
-            kind = "dieu"
-        u = units.get(unit_id)
-        if u is None:
-            units[unit_id] = {
-                "unit_id": unit_id, "kind": kind, "van_ban_id": vb_id,
-                "so_hieu": so_hieu, "ten_van_ban": ten_vb,
-                "so_dieu": so_dieu, "tieu_de_dieu": tieu_de_dieu,
-                "dieu_noi_dung": dieu_nd, "diem_rrf": rrf,
-            }
-        elif rrf > u["diem_rrf"]:
-            u["diem_rrf"] = rrf
-
-    # Dung lai noi_dung day du cho tung Khoan me: cau dan + tat ca diem con.
-    noi_dung_khoan: dict[str, tuple[str | None, str]] = {}
-    if khoan_me_ids:
-        ids = list(khoan_me_ids)
-        with conn.cursor() as cur:
-            cur.execute(
-                """SELECT id, so_khoan, diem, noi_dung, thu_tu, parent_id
-                   FROM khoan
-                   WHERE id = ANY(%s) OR parent_id = ANY(%s)
-                   ORDER BY thu_tu""",
-                (ids, ids),
-            )
-            krows = cur.fetchall()
-        lead: dict[str, tuple[str | None, str]] = {}
-        con: dict[str, list[tuple[str | None, str]]] = {}
-        for kid, so_khoan, diem, nd, tt, parent_id in krows:
-            if kid in khoan_me_ids and diem is None:
-                lead[kid] = (so_khoan, nd or "")
-            if parent_id in khoan_me_ids:
-                con.setdefault(parent_id, []).append((diem, nd or ""))
-        for kmid in khoan_me_ids:
-            so_khoan, lead_nd = lead.get(kmid, (None, ""))
-            parts = [lead_nd] if lead_nd else []
-            for diem, nd in con.get(kmid, []):
-                parts.append(f"{diem}) {nd}" if diem else nd)
-            noi_dung_khoan[kmid] = (so_khoan, "\n".join(p for p in parts if p).strip())
-
-    out = []
-    for unit_id, u in units.items():
-        if u["kind"] == "khoan":
-            so_khoan, noi_dung = noi_dung_khoan.get(unit_id, (None, ""))
-        else:
-            so_khoan, noi_dung = None, (u["dieu_noi_dung"] or "").strip()
-        out.append({
-            "khoan_id": unit_id,
-            "van_ban_id": u["van_ban_id"],
-            "so_hieu": u["so_hieu"], "ten_van_ban": u["ten_van_ban"],
-            "so_dieu": u["so_dieu"], "tieu_de_dieu": u["tieu_de_dieu"],
-            "so_khoan": so_khoan, "diem": None,
-            "noi_dung": noi_dung,
-            "loai_rang_buoc": _loai_rang_buoc(noi_dung),
-            "diem_rrf": u["diem_rrf"],
-        })
-    out.sort(key=lambda x: -x["diem_rrf"])
-    return out
 
 
 def _so_sanh_chunk(dv_dict: dict, ung_vien: list[dict], is_local: bool | None = None) -> dict:
@@ -310,10 +224,11 @@ def _so_sanh_chunk(dv_dict: dict, ung_vien: list[dict], is_local: bool | None = 
     uv_rut_gon = [
         {
             "khoan_id": u["khoan_id"], "so_hieu": u["so_hieu"],
+            "phan": u.get("phan"), "chuong": u.get("chuong"),
             "so_dieu": u["so_dieu"], "so_khoan": u["so_khoan"], "diem": u["diem"],
             "tieu_de_dieu": u["tieu_de_dieu"],
             "loai_rang_buoc": u.get("loai_rang_buoc", ["khong_ro"]),
-            "noi_dung": u["noi_dung"][:1500],
+            "noi_dung": u["noi_dung"][:2200],  # du cho khoi 'noi dung sau khi sua' o dau
         }
         for u in ung_vien
     ]
@@ -344,72 +259,76 @@ def audit(req: AuditRequest) -> dict:
     Them: tier1 kiem can cu het hieu luc trong 'Can cu' cua du thao.
     """
     ngay = date.today()
-    with ket_noi() as conn, conn.cursor() as cur:
-        cur.execute(
-            "SELECT id, can_cu_tho, cap_tuong_duong FROM tai_lieu WHERE id=%s",
-            (req.tai_lieu_id,),
-        )
-        row = cur.fetchone()
-    if row is None:
-        raise HTTPException(404, f"tai_lieu_id '{req.tai_lieu_id}' khong ton tai")
-    _, can_cu_tho, cap_tai_lieu = row
-
-    # Nap don vi tu DB
     with ket_noi() as conn:
+        dt = rt.doc_du_thao(conn, req.tai_lieu_id)
+        if dt is None:
+            raise HTTPException(404, f"tai_lieu_id '{req.tai_lieu_id}' khong ton tai")
         rows = rt.danh_sach_don_vi(conn, req.tai_lieu_id)
+    can_cu_tho = dt["can_cu_tho"]
+    cap_tai_lieu = None  # user khong cung cap cap tuong duong
     from app.doisanh.audit.segment import DonViSegment
     don_vi_list = [DonViSegment(
         id=r["id"], cap=r["cap"], so_dieu=r["so_dieu"], so_khoan=r["so_khoan"],
         diem=r["diem"], tieu_de=r["tieu_de"], noi_dung=r["noi_dung"],
-        hash=r["hash"], thu_tu=r["thu_tu"], parent_id=r["parent_id"],
+        hash="", thu_tu=r["thu_tu"], parent_id=r["parent_id"],
     ) for r in rows]
+    emb_by_id = {r["id"]: _parse_vec(r["embedding"]) for r in rows if r.get("embedding")}
     if not don_vi_list:
         raise HTTPException(422, "Du thao chua co don vi nao, hay upload lai")
 
-    # Tier1: can cu het hieu luc, dan chieu sai, trich sai nguyen van.
+    # Tier1 (dan chieu/hieu luc) con bam schema cu (repo_hieu_luc + 5 ham hieu luc da bi 003 drop).
+    # shortcut: tat theo settings.ENABLE_TIER1 cho den khi port tier1 sang node/tac_dong.
     tier1_phat_hien: list[dict] = []
-    with ket_noi() as conn:
-        ph = chay_tier1(conn, don_vi_list, ngay,
-                        van_ban_me_ids=[], can_cu_tho=can_cu_tho or [],
-                        cap_tai_lieu=cap_tai_lieu)
-        # map ten VB can cu
-        vb_ids = {p.can_cu.van_ban_id for p in ph if p.can_cu and p.can_cu.van_ban_id}
-        vb_map = {}
-        if vb_ids:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT id, so_hieu, ten FROM van_ban WHERE id = ANY(%s)",
-                    (list(vb_ids),),
-                )
-                vb_map = {r[0]: (r[1], r[2]) for r in cur.fetchall()}
-        for p in ph:
-            vb = vb_map.get(p.can_cu.van_ban_id if p.can_cu else None, ("", ""))
-            tier1_phat_hien.append({
-                "don_vi_id": p.don_vi_id,
-                "loai_loi": p.loai_loi, "tin_cay": p.tin_cay,
-                "doan_du_thao": p.doan_du_thao or "",
-                "so_hieu": vb[0], "ten_van_ban": vb[1],
-                "trich_dan": p.can_cu.trich_dan if p.can_cu else "",
-                "giai_thich": p.giai_thich or "",
-                "de_xuat_sua": p.de_xuat_sua or "",
-            })
+    if settings.ENABLE_TIER1:
+        with ket_noi() as conn:
+            ph = chay_tier1(conn, don_vi_list, ngay,
+                            van_ban_me_ids=[], can_cu_tho=can_cu_tho or [],
+                            cap_tai_lieu=cap_tai_lieu)
+            vb_ids = {p.can_cu.van_ban_id for p in ph if p.can_cu and p.can_cu.van_ban_id}
+            vb_map = {}
+            if vb_ids:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT id, so_hieu, ten FROM van_ban WHERE id = ANY(%s)",
+                        (list(vb_ids),),
+                    )
+                    vb_map = {r[0]: (r[1], r[2]) for r in cur.fetchall()}
+            for p in ph:
+                vb = vb_map.get(p.can_cu.van_ban_id if p.can_cu else None, ("", ""))
+                tier1_phat_hien.append({
+                    "don_vi_id": p.don_vi_id,
+                    "loai_loi": p.loai_loi, "tin_cay": p.tin_cay,
+                    "doan_du_thao": p.doan_du_thao or "",
+                    "so_hieu": vb[0], "ten_van_ban": vb[1],
+                    "trich_dan": p.can_cu.trich_dan if p.can_cu else "",
+                    "giai_thich": p.giai_thich or "",
+                    "de_xuat_sua": p.de_xuat_sua or "",
+                })
 
     # Tier2: moi chunk -> hybrid toan DB -> LLM
     don_vi_can_xet = [dv for dv in don_vi_list if dv.cap in {"khoan", "diem", "doan"}]
 
-    def _xu_ly(dv: DonViSegment) -> tuple[DonViSegment, list[dict], dict]:
+    def _xu_ly(dv) -> tuple[Any, list[dict], dict]:
         text = _chunk_embed_text(dv)
+        emb = emb_by_id.get(dv.id)
         with ket_noi() as c:
             # Over-fetch: nhieu chunk cung Khoan me se bi gop lai, nen lay du de
             # sau khu trung van con du top_k Khoan rieng biet.
-            rows = tim_hybrid_tu_text(
-                c, text, ngay=ngay, top_k=req.top_k * 4,
-                van_ban_ids=req.van_ban_me_ids,
-            )
+            # Co embedding da luu luc upload -> dung lai; nguoc lai embed tu text.
+            if emb is not None:
+                rows = tim_hybrid(
+                    c, text, emb, ngay=ngay, top_k=req.top_k * 4,
+                    van_ban_ids=req.van_ban_me_ids,
+                )
+            else:
+                rows = tim_hybrid_tu_text(
+                    c, text, ngay=ngay, top_k=req.top_k * 4,
+                    van_ban_ids=req.van_ban_me_ids,
+                )
             if not rows:
                 return dv, [], {}
             diem_rrf = {r["chunk_id"]: r["diem_rrf"] for r in rows}
-            ung_vien = _nap_khoan_ung_vien(
+            ung_vien = nap_khoan_ung_vien(
                 c, [r["chunk_id"] for r in rows], diem_rrf,
             )[: req.top_k]
         dv_dict = {
@@ -460,9 +379,13 @@ def audit(req: AuditRequest) -> dict:
                     "de_xuat_sua": "", "tin_cay": kq_llm.get("tin_cay", 0.0),
                 })
             else:
+                # VI_PHAM: dung snippet LLM chep (chi phan sai) neu hop le; nguoc lai nguyen van.
+                snippet = (kq_llm.get("noi_dung_du_thao") or "").strip()
+                doan = (snippet if trang_thai == "VI_PHAM"
+                        and _la_snippet_hop_le(snippet, dv.noi_dung) else dv.noi_dung)
                 tier2_kq.append({
                     "don_vi_id": dv.id, "trang_thai": trang_thai,
-                    "doan_du_thao": dv.noi_dung,
+                    "doan_du_thao": doan,
                     "so_hieu": u.get("so_hieu", ""),
                     "ten_van_ban": u.get("ten_van_ban", ""),
                     "trich_dan": cc.get("trich_dan") or u.get("noi_dung", ""),
@@ -470,10 +393,11 @@ def audit(req: AuditRequest) -> dict:
                     "de_xuat_sua": kq_llm.get("de_xuat_sua", "")
                     if trang_thai == "VI_PHAM" else "",
                     "tin_cay": kq_llm.get("tin_cay", 0.0),
+                    "tac_dong": u.get("tac_dong"),   # kem sua doi (neu co) de tra ra ket qua
+                    "cc_vi_tri": _vi_tri_can_cu(u),  # vi tri can cu: Dieu X khoan Y
                 })
 
-    # Lay vi tri du thao
-    dv_vi_tri = {dv.id: _vi_tri(dv) for dv in don_vi_list}
+    ngay_iso = date.today().isoformat()
 
     # Tier1 findings deu la VI_PHAM
     for k in tier1_phat_hien:
@@ -482,18 +406,24 @@ def audit(req: AuditRequest) -> dict:
     nhom: dict[str, list[dict]] = {"VI_PHAM": [], "HOP_LE": [], "CHUA_XAC_DINH": []}
     for k in tier1_phat_hien + tier2_kq:
         tag = k.get("trang_thai", "CHUA_XAC_DINH")
+        cc = {
+            "so_hieu": k.get("so_hieu", ""),
+            "ten_van_ban": k.get("ten_van_ban", ""),
+            "vi_tri": k.get("cc_vi_tri", ""),
+            "trich_dan": k.get("trich_dan", ""),        # phan CHUA sua (noi dung hien hanh)
+        }
+        bsd = tac_dong_tom_tat(k.get("tac_dong"), ngay_iso)
+        if bsd:                                          # phan SAU khi sua (neu co)
+            cc["da_sua"] = True
+            cc["sua_boi"] = bsd["nguon"]
+            cc["ngay_hieu_luc"] = bsd["ngay_hieu_luc"]
+            cc["da_het_hieu_luc"] = bsd["da_het_hieu_luc"]
+            cc["noi_dung_sau_sua"] = bsd["noi_dung_sau_sua"]
         nhom[tag].append({
-            "don_vi_id": k["don_vi_id"],
-            "vi_tri_du_thao": dv_vi_tri.get(k["don_vi_id"], k["don_vi_id"]),
+            "don_vi_id": k["don_vi_id"],   # can cho UI to mau don vi du thao (xanh/do/vang)
             "noi_dung_du_thao": k.get("doan_du_thao", ""),
-            "can_cu_phap_ly": {
-                "so_hieu": k.get("so_hieu", ""),
-                "ten_van_ban": k.get("ten_van_ban", ""),
-                "trich_dan": k.get("trich_dan", ""),
-            },
-            "giai_thich": k.get("giai_thich", ""),
+            "can_cu_phap_ly": cc,
             "de_xuat_sua": k.get("de_xuat_sua", ""),
-            "tin_cay": k.get("tin_cay", 0.0),
         })
 
     return {
@@ -503,9 +433,96 @@ def audit(req: AuditRequest) -> dict:
     }
 
 
-def _vi_tri(dv) -> str:
-    pos = ""
-    if dv.so_dieu: pos += f"Dieu {dv.so_dieu}"
-    if dv.so_khoan: pos += f" Khoan {dv.so_khoan}"
-    if dv.diem: pos += f" Diem {dv.diem}"
-    return pos or f"Doan {dv.thu_tu}"
+def _chuan_so_sanh(s: str) -> str:
+    return re.sub(r"\s+", " ", (s or "")).strip().lower()
+
+
+def _la_snippet_hop_le(snippet: str, nguyen_van: str) -> bool:
+    """Snippet LLM chep la 1 doan con THUC SU cua nguyen van (chep dung, ngan hon)."""
+    ns, nf = _chuan_so_sanh(snippet), _chuan_so_sanh(nguyen_van)
+    return bool(ns) and ns in nf and len(ns) < len(nf)
+
+
+def _vi_tri_can_cu(u: dict) -> str:
+    """Vi tri can cu phap ly: 'Chuong .. Dieu X khoan Y diem Z' tu ung vien khoan me."""
+    parts = []
+    if u.get("phan"):
+        parts.append(u["phan"])
+    if u.get("chuong"):
+        parts.append(u["chuong"])
+    if u.get("so_dieu"):
+        parts.append(f"Điều {u['so_dieu']}")
+    if u.get("so_khoan"):
+        parts.append(f"khoản {u['so_khoan']}")
+    if u.get("diem"):
+        parts.append(f"điểm {u['diem']}")
+    return " ".join(parts)
+
+
+@router.post("/audit/docx")
+def audit_docx(req: AuditRequest) -> dict:
+    """Y HET /audit (input JSON {tai_lieu_id, top_k, ...}), NHUNG ngoai JSON ket qua con
+    LUU ra file '<ten_goc>_track_changes.docx' (to mau DO cac doan VI_PHAM + comment
+    'AI LEGAL': trich_dan can cu + de_xuat_sua) de nguoi dung tai ve.
+
+    Tra ve: toan bo JSON cua /audit + `so_danh_dau` + `ten_file` + `tai_file`
+    (URL GET de tai). Null neu ban goc khong phai .docx / khong tim thay.
+    """
+    ket = audit(req)
+    so_danh_dau = 0
+    ten_file: str | None = None
+    src = _file_goc(req.tai_lieu_id)
+    if src is not None and src.suffix.lower() == ".docx":
+        out_dir = _OUTPUT_DIR / req.tai_lieu_id
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / f"{src.stem}{_HAU_TO_TC}.docx"
+        try:
+            so_danh_dau = danh_dau_vi_pham(src, ket, out)
+        except Exception as exc:
+            logger.exception("Danh dau docx loi: %s", exc)
+            raise HTTPException(500, f"Khong danh dau duoc docx: {exc}")
+        ten_file = out.name
+    return {
+        **ket,
+        "so_danh_dau": so_danh_dau,
+        "ten_file": ten_file,
+        "tai_file": f"/audit/docx/{req.tai_lieu_id}" if ten_file else None,
+    }
+
+
+@router.delete("/draft")
+def xoa_tat_ca_draft() -> dict:
+    """Clear TOAN BO du thao trong rag (du_thao + du_thao_node) + file da luu. De upload lai tu dau."""
+    with ket_noi() as conn:
+        n = rt.xoa_tat_ca_du_thao(conn)
+        conn.commit()
+    shutil.rmtree(_DRAFT_DIR, ignore_errors=True)
+    shutil.rmtree(_OUTPUT_DIR, ignore_errors=True)
+    return {"da_xoa": n}
+
+
+@router.delete("/draft/{tai_lieu_id}")
+def xoa_draft(tai_lieu_id: str) -> dict:
+    """Xoa 1 du thao (du_thao + du_thao_node cascade) + file goc/track-change da luu."""
+    with ket_noi() as conn:
+        n = rt.xoa_du_thao(conn, tai_lieu_id)
+        conn.commit()
+    shutil.rmtree(_DRAFT_DIR / tai_lieu_id, ignore_errors=True)
+    shutil.rmtree(_OUTPUT_DIR / tai_lieu_id, ignore_errors=True)
+    if not n:
+        raise HTTPException(404, f"tai_lieu_id '{tai_lieu_id}' khong ton tai")
+    return {"tai_lieu_id": tai_lieu_id, "da_xoa": True}
+
+
+@router.get("/audit/docx/{tai_lieu_id}")
+def tai_file_track_changes(tai_lieu_id: str) -> FileResponse:
+    """Tai file '<ten_goc>_track_changes.docx' da tao o POST /audit/docx (data/track_changes)."""
+    folder = _OUTPUT_DIR / tai_lieu_id
+    hits = sorted(folder.glob(f"*{_HAU_TO_TC}.docx")) if folder.is_dir() else []
+    if not hits:
+        raise HTTPException(404, "Chua co file track-changes. Goi POST /audit/docx truoc.")
+    f = hits[0]
+    return FileResponse(
+        str(f), filename=f.name,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
