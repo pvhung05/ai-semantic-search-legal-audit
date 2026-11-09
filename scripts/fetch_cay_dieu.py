@@ -1,6 +1,6 @@
 """Fetch CAY phan cap noi dung (Chuong/Dieu/Khoan/Diem) tu vbpl.vn.
 
-Action: 31572a1d85cf23708d9875b486a76c7a3e2af250 (van ban da chia cap).
+Action: 31572a1d85cf23708d9875b486a76c7a3e2af300 (van ban da chia cap).
 Response text/x-component: dong '1:' la cay JSON, nhung noi dung Dieu/Khoan/Diem
 duoc danh trung vao cac text-literal 'T<hexlen>,...' va tham chieu bang '$<id>'.
 Script boc tach theo do dai (parse_rsc_flight) roi noi lai (resolve_rsc_refs) de

@@ -505,7 +505,7 @@ async function runAudit() {
   try {
     const r = await fetch(API + '/audit/docx', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tai_lieu_id: taiLieuId, top_k: 5, is_local: isLocal })
+      body: JSON.stringify({ tai_lieu_id: taiLieuId, top_k: 8, is_local: isLocal })
     });
     if (!r.ok) throw new Error(await r.text());
     auditResult = await r.json();

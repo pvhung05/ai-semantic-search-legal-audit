@@ -15,8 +15,13 @@ from dataclasses import dataclass, field
 
 from app.doisanh.ingestion.normalize import chuan_hoa_so_sanh, chuan_hoa_text
 from app.doisanh.ingestion.parser import (
-    RE_CHUONG, RE_DIEM, RE_DIEU, RE_KHOAN, RE_MUC, _trich_can_cu,
+    RE_CAN_CU, RE_CHUONG, RE_DIEM, RE_DIEU, RE_KHOAN, RE_MUC, _trich_can_cu,
 )
+
+# Dong tieu de loai van ban (de nhan dien khoi trich yeu = chu de chung cua ca van ban).
+RE_LOAI_VB = re.compile(
+    r"^(NGHỊ QUYẾT|QUYẾT ĐỊNH|NGHỊ ĐỊNH|THÔNG TƯ|QUY CHẾ|QUY ĐỊNH|QUY TRÌNH|CHỈ THỊ|"
+    r"KẾ HOẠCH|LUẬT|PHÁP LỆNH|HIẾN PHÁP|ĐỀ ÁN)\b", re.IGNORECASE)
 
 RE_LA_MA = re.compile(r"^[IVX]+\.\s+(.*)$")
 RE_SO_CHAM = re.compile(r"^\d+\.\s+(.*)$")
@@ -28,14 +33,23 @@ RE_CAU = re.compile(r"(?<=[\.;!?])\s+(?=[A-ZĐa-zđ0-9\"])")
 RE_QUOC_HIEU = re.compile(r"CỘNG\s*HO[ÀA]\s*XÃ\s*HỘI\s*CHỦ\s*NGHĨA\s*VIỆT\s*NAM", re.I)
 RE_TIEU_NGU = re.compile(r"Độc\s*lập\s*-\s*Tự\s*do\s*-\s*Hạnh\s*phúc", re.I)
 RE_DIA_DANH_NGAY = re.compile(r"^[^,\n]{1,30},\s*ngày\b.*\bnăm\b", re.I)
+# Co quan ban hanh / chuc danh nguoi ky o block ky cuoi VB - dong CHU HOA dung rieng.
+# CO Y khong IGNORECASE: noi dung thuong viet thuong ('Chu tich UBND xa co trach nhiem...') nen
+# chi khop dang CHU HOA cua block ky, tranh nuot noi dung that.
+RE_CO_QUAN_KY = re.compile(
+    r"^(TÒA ÁN NHÂN DÂN|VIỆN KIỂM SÁT NHÂN DÂN|ỦY BAN NHÂN DÂN|HỘI ĐỒNG NHÂN DÂN|CHÍNH PHỦ"
+    r"|QUỐC HỘI|BỘ [A-ZÀ-Ỹ]|CHÁNH ÁN|PHÓ CHÁNH ÁN|BỘ TRƯỞNG|THỦ TƯỚNG|CHỦ TỊCH|PHÓ CHỦ TỊCH"
+    r"|KT\.|TM\.|TL\.|NƠI NHẬN)"
+)
 
 
 def _la_boilerplate(line: str) -> bool:
-    """Dong quoc hieu / tieu ngu / 'dia danh, ngay ... thang ... nam' (khong phai noi dung)."""
+    """Dong quoc hieu / tieu ngu / 'dia danh, ngay...' / co quan ban hanh - nguoi ky (block ky)."""
     return bool(
         RE_QUOC_HIEU.search(line)
         or RE_TIEU_NGU.search(line)
         or RE_DIA_DANH_NGAY.match(line)
+        or RE_CO_QUAN_KY.match(line)
     )
 
 
@@ -59,6 +73,32 @@ class KetQuaSegment:
     don_vi: list[DonViSegment] = field(default_factory=list)
     can_cu_tho: list[str] = field(default_factory=list)
     co_cau_truc_dieu: bool = False
+    trich_yeu: str = ""   # chu de chung cua ca van ban (de gui kem prompt xac dinh linh vuc)
+
+
+def _trich_yeu(lines: list[str]) -> str:
+    """Trich yeu = chu de chung cua van ban: tu dong tieu de loai VB (QUYET DINH/QUY CHE...) +
+    cac dong ngay sau, dung truoc 'Can cu'/Chuong/Muc/Dieu hoac dong trong. Rong neu khong nhan dien."""
+    out: list[str] = []
+    bat_dau = False
+    for raw in lines:
+        line = raw.strip()
+        if not line or _la_boilerplate(line):
+            if bat_dau:
+                break
+            continue
+        if not bat_dau:
+            if RE_LOAI_VB.match(line):
+                bat_dau = True
+                out.append(line)
+            continue
+        if (RE_CAN_CU.match(line) or RE_DIEU.match(line) or RE_CHUONG.match(line)
+                or RE_MUC.match(line)):
+            break
+        out.append(line)
+        if len(out) >= 5:
+            break
+    return " ".join(out).strip()
 
 
 def _hash(noi_dung: str, tieu_de_tren: str | None) -> str:
@@ -71,6 +111,7 @@ def segment_du_thao(text: str, tai_lieu_id: str) -> KetQuaSegment:
     lines = text.split("\n")
     kq = KetQuaSegment()
     kq.can_cu_tho = _trich_can_cu(lines)
+    kq.trich_yeu = _trich_yeu(lines)
 
     # Phat hien co cau truc Dieu khong
     co_dieu = any(RE_DIEU.match(ln.strip()) for ln in lines)
@@ -81,6 +122,12 @@ def segment_du_thao(text: str, tai_lieu_id: str) -> KetQuaSegment:
     else:
         _segment_khong_dieu(lines, tai_lieu_id, kq)
     return kq
+
+
+# Khoan co Diem ma tong do dai (Khoan + cac Diem) < nguong nay (so TU) -> gop thanh 1 don vi
+# thay vi tach tung Diem -> giam so don vi du thao -> giam so lan goi LLM tier2.
+# shortcut: dem theo TU (split khoang trang); doi sang len(text) neu muon tinh ky tu.
+NGUONG_GOP_DIEM_TU = 300
 
 
 def _segment_co_dieu(lines: list[str], tai_lieu_id: str, kq: KetQuaSegment) -> None:
@@ -95,19 +142,22 @@ def _segment_co_dieu(lines: list[str], tai_lieu_id: str, kq: KetQuaSegment) -> N
     so_dieu_hien_tai: str | None = None
     dieu_id_hien_tai: str | None = None
     cur_khoan: DonViSegment | None = None
+    cur_diems: list[DonViSegment] = []   # buffer Diem cua Khoan hien tai (chot khi het Khoan)
+    cur_diem: DonViSegment | None = None  # Diem dang mo -> noi dung tiep sau ('+' bullet, doan) gom vao day
     co_khoan_trong_dieu: bool = False
     thu_tu = 0
     noi_dung_tam: list[str] = []
 
     def _flush_vao_khoan() -> None:
-        # Chi gom vao Khoan hien tai neu dang trong Khoan.
-        # Neu dang o Dieu khong Khoan, giu nguyen noi_dung_tam de flush sau.
-        if cur_khoan is None:
+        # Gom noi_dung_tam vao DIEM dang mo (de '+' bullet / doan giai thich thuoc dung Diem);
+        # neu khong trong Diem thi vao Khoan. Dieu-khong-Khoan: giu nguyen de flush sau.
+        target = cur_diem or cur_khoan
+        if target is None:
             return
         if noi_dung_tam:
             them = " ".join(noi_dung_tam).strip()
             if them:
-                cur_khoan.noi_dung = (cur_khoan.noi_dung + " " + them).strip()
+                target.noi_dung = (target.noi_dung + " " + them).strip()
             noi_dung_tam.clear()
 
     def _flush_dieu_khong_khoan() -> None:
@@ -130,11 +180,36 @@ def _segment_co_dieu(lines: list[str], tai_lieu_id: str, kq: KetQuaSegment) -> N
         )
         kq.don_vi.append(dv)
 
+    def _chot_khoan() -> None:
+        """Ket thuc Khoan hien tai. Neu tong (Khoan + cac Diem) < NGUONG_GOP_DIEM_TU tu -> GOP
+        Diem vao Khoan thanh 1 don vi (giam so lan goi LLM); nguoc lai giu Khoan + tung Diem rieng."""
+        nonlocal cur_khoan, cur_diems, cur_diem
+        if cur_khoan is None:
+            cur_diems = []
+            cur_diem = None
+            return
+        _flush_vao_khoan()
+        cur_diem = None
+        if cur_diems:
+            gop = cur_khoan.noi_dung + " " + " ".join(
+                f"{d.diem}) {d.noi_dung}" for d in cur_diems)
+            if len(gop.split()) < NGUONG_GOP_DIEM_TU:
+                cur_khoan.noi_dung = gop.strip()
+                kq.don_vi.append(cur_khoan)        # gop: chi 1 don vi Khoan
+            else:
+                kq.don_vi.append(cur_khoan)        # dai: giu Khoan + tung Diem rieng
+                kq.don_vi.extend(cur_diems)
+        else:
+            kq.don_vi.append(cur_khoan)
+        cur_khoan = None
+        cur_diems = []
+
     def _reset_dieu() -> None:
         nonlocal so_dieu_hien_tai, dieu_id_hien_tai, tieu_de_dieu_hien_tai
-        nonlocal cur_khoan, co_khoan_trong_dieu
+        nonlocal cur_khoan, co_khoan_trong_dieu, cur_diem
         so_dieu_hien_tai = dieu_id_hien_tai = tieu_de_dieu_hien_tai = None
         cur_khoan = None
+        cur_diem = None
         co_khoan_trong_dieu = False
 
     for raw in lines:
@@ -157,7 +232,7 @@ def _segment_co_dieu(lines: list[str], tai_lieu_id: str, kq: KetQuaSegment) -> N
         m = RE_CHUONG.match(line)
         if m:
             if cur_khoan:
-                _flush_vao_khoan()
+                _chot_khoan()
             else:
                 _flush_dieu_khong_khoan()
             chuong_hien_tai = m.group(1)
@@ -165,27 +240,28 @@ def _segment_co_dieu(lines: list[str], tai_lieu_id: str, kq: KetQuaSegment) -> N
             continue
         if RE_MUC.match(line):
             if cur_khoan:
-                _flush_vao_khoan()
+                _chot_khoan()
             else:
                 _flush_dieu_khong_khoan()
             _reset_dieu()
             continue
         m = RE_DIEU.match(line)
         if m:
-            # Flush noi dung tich luy: hoac vao Khoan hien tai, hoac tao chunk Dieu-khong-Khoan
+            # Chot Khoan truoc (gop/tach Diem); hoac tao chunk Dieu-khong-Khoan
             if cur_khoan:
-                _flush_vao_khoan()
+                _chot_khoan()
             else:
                 _flush_dieu_khong_khoan()
             so_dieu_hien_tai = m.group(1)
             tieu_de_dieu_hien_tai = (m.group(2) or "").strip() or None
             dieu_id_hien_tai = f"{tai_lieu_id}:D{so_dieu_hien_tai}"
             cur_khoan = None
+            cur_diem = None
             co_khoan_trong_dieu = False
             continue
         m = RE_KHOAN.match(line)
         if m and so_dieu_hien_tai:
-            _flush_vao_khoan()
+            _chot_khoan()           # chot Khoan truoc (gop/tach Diem) truoc khi mo Khoan moi
             co_khoan_trong_dieu = True
             thu_tu += 1
             so_khoan = m.group(1)
@@ -197,11 +273,12 @@ def _segment_co_dieu(lines: list[str], tai_lieu_id: str, kq: KetQuaSegment) -> N
                 noi_dung=noi_dung, hash="", thu_tu=thu_tu,
                 parent_id=None,
             )
-            kq.don_vi.append(cur_khoan)
+            cur_diems = []          # buffer Diem cua Khoan moi; chot khi het Khoan
+            cur_diem = None         # chua vao Diem nao -> noi dung tiep theo vao than Khoan
             continue
         m = RE_DIEM.match(line)
         if m and cur_khoan:
-            _flush_vao_khoan()
+            _flush_vao_khoan()      # flush phan truoc vao Diem truoc (hoac than Khoan neu la Diem dau)
             thu_tu += 1
             diem = m.group(1)
             noi_dung = (m.group(2) or "").strip()
@@ -213,12 +290,13 @@ def _segment_co_dieu(lines: list[str], tai_lieu_id: str, kq: KetQuaSegment) -> N
                 noi_dung=noi_dung, hash="", thu_tu=thu_tu,
                 parent_id=cur_khoan.id,
             )
-            kq.don_vi.append(diem_dv)
+            cur_diems.append(diem_dv)   # buffer; _chot_khoan quyet dinh gop hay tach
+            cur_diem = diem_dv          # noi dung tiep sau ('+' bullet, doan) gom vao Diem nay
             continue
         noi_dung_tam.append(line)
-    # Ket thuc: flush not luu vao Khoan hien tai, hoac tao chunk Dieu-khong-Khoan cuoi cung
+    # Ket thuc: chot Khoan cuoi (gop/tach Diem), hoac tao chunk Dieu-khong-Khoan cuoi
     if cur_khoan:
-        _flush_vao_khoan()
+        _chot_khoan()
     else:
         _flush_dieu_khong_khoan()
 

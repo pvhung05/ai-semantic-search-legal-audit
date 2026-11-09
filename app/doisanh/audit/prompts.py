@@ -86,7 +86,7 @@ TIER2_KHOAN_HE_THONG = HE_THONG_CHUNG + (
     " (gio, ngay, thang, nam, %, tien, tuoi...), ap dung DUNG quy tac theo loai:"
     "\n  - 'san' (luat dat muc TOI THIEU: 'it nhat', 'toi thieu', 'khong thap hon'):"
     "\n       du thao THAP HON san -> vi_pham. Du thao BANG hoac CAO HON san -> hop_le."
-    "\n       Vd luat 'it nhat 300%', du thao 250% -> vi_pham; du thao 350% -> hop_le."
+    "\n       Vd luat 'it nhat 300%', du thao 300% -> vi_pham; du thao 350% -> hop_le."
     "\n  - 'tran' (luat dat muc TOI DA: 'khong qua', 'toi da', 'khong vuot qua'):"
     "\n       du thao CAO HON tran -> vi_pham. Du thao BANG hoac THAP HON tran -> hop_le."
     "\n       Vd luat 'khong qua 60 ngay', du thao 90 -> vi_pham; du thao 45 ngay -> hop_le."
@@ -118,11 +118,59 @@ TIER2_KHOAN_HE_THONG = HE_THONG_CHUNG + (
     " ('tren dia ban tinh H'), DIEU KHOAN THI HANH ('... chiu trach nhiem thi hanh'),"
     " HIEU LUC THI HANH ('co hieu luc tu ngay...'). Day la noi dung ky thuat soan thao,"
     " trong tham quyen co quan ban hanh."
-    "\n\nCAN CU DA BI SUA: neu Khoan me mo dau bang khoi '[CAN CU NAY ... DUNG NOI DUNG SAU KHI SUA"
-    " LAM CHUAN]' kem dong 'Noi dung sau khi sua: ...' -> LAY NOI DUNG SAU KHI SUA do lam chuan"
-    " so sanh (uu tien hon ban goc phia duoi). Neu khoi ghi 'DA HET HIEU LUC' (bai bo) -> can cu"
-    " khong con hieu luc; du thao van vien dan/mau thuan voi ban moi -> vi_pham, va neu con can cu"
-    " khac phu hop thi dung can cu do."
+    "\n\nQUY TAC RA SOAT (BAT BUOC - uu tien KHONG sua):"
+    "\n1. MAC DINH KHONG SUA. Chi ket luan vi_pham khi doan du thao TRAI / THIEU / VUOT QUA mot"
+    " quy dinh BAT BUOC cua can cu. 'Khac cach dien dat' hoac 'can cu co THEM noi dung' KHONG phai"
+    " vi_pham -> hop_le."
+    "\n2. KIEM TRA LIEN QUAN truoc khi dung 1 Khoan me lam can cu - phai dung CA 3: (a) cung LINH"
+    " VUC; (b) cung CHU THE; (c) cung LOAI NOI DUNG (thoi han/tham quyen/trach nhiem/dinh nghia...)."
+    " Thieu 1 -> LOAI can cu do. Neu khong con can cu nao dung ca 3 -> chua_xac_dinh."
+    "\n2b. CHONG AP CHEO DOMAIN (BAT BUOC): moi Khoan me ung vien co truong 'ten_van_ban' (ten luat"
+    " nguon). SO 'ten_van_ban' + noi dung voi TRICH YEU cua du thao (neu co o dau prompt). Neu luat"
+    " nguon thuoc LINH VUC KHAC HAN du thao (vd du thao ve tiep cong dan/khieu nai-to cao ma can cu"
+    " la luat/thong tu ve tai chinh, thue, xay dung, giao thong, giao duc, dat dai...) -> LOAI can"
+    " cu do, tra chua_xac_dinh. TUYET DOI KHONG ket luan vi_pham dua tren can cu KHAC LINH VUC, KE"
+    " CA khi TRUNG cum tu chung nhu 'doi tuong ap dung', 'pham vi dieu chinh', 'giai thich tu ngu',"
+    " 'nguyen tac'... Trung cum tu generic KHONG phai la cung van de."
+    "\n3. KIEM TRA HIEU LUC. Can cu da bi sua doi -> chi dung ban sau sua (xem muc ben duoi). Neu"
+    " can cu NHAC den cap/don vi to chuc DA BI BAI BO hoac DOI TEN theo cai cach bo may -> do la"
+    " ban CU, phai tim ban sua; khong co ban sua / khong chac -> chua_xac_dinh, KHONG sua du thao"
+    " theo ban cu."
+    "\n4. GIU CHU THE & PHAM VI. de_xuat_sua KHONG duoc doi chu the cua doan du thao, KHONG thay"
+    " nhiem vu cu the trong quy trinh bang nhiem vu chung cua chuc danh trong luat to chuc."
+    "\n5. SUA TOI THIEU. KHONG chep nguyen van luat vao du thao; KHONG gop nhieu diem thanh mot."
+    "\n6. KHI KHONG CHAC (hieu luc chua ro, lien quan khong du 3/3, hoac do tin cay thap) -> KHONG"
+    " ket luan vi_pham; chon chua_xac_dinh (chua co can cu doi chieu) hoac hop_le (khong thay trai"
+    " ro rang)."
+    "\nTU KIEM TRA truoc khi tra vi_pham (loai neu khong dat): de_xuat_sua co lap doan khong? chu"
+    " the co giu nguyen khong? co vo tinh ap theo cap/don vi to chuc da bi bo khong? de_xuat co lam"
+    " mat noi dung dac thu cua quy trinh khong?"
+    "\n\nNGOAI LE (bat loi DU KHONG co dieu cam nguyen van - UU TIEN hon rule 1 va rule 6): neu doan"
+    " du thao THUC HIEN mot HANH VI NHAY CAM ma KHONG Khoan me nao CHO PHEP ro rang -> vi_pham."
+    " Hanh vi nhay cam gom: (i) tiet lo/cong khai THONG TIN CA NHAN (ho ten, dia chi, so dien thoai,"
+    " nhan than...) cua nguoi duoc phap luat BAO VE (nguoi to cao, nguoi lam chung, nguoi bi hai, tre"
+    " em, bi can/bi cao chua thanh nien...); (ii) cap quyen truy cap / chia se du lieu ca nhan cho ben"
+    " KHONG co tham quyen; (iii) bo qua buoc bao mat/bao ve BAT BUOC. Khi gap nhom nay:"
+    " trang_thai=vi_pham; 'giai_thich' neu ro 'hanh vi nhay cam <X> khong co can cu cho phep, trai"
+    " nguyen tac bao ve <chu the>'; 'can_cu' tro Khoan me lien quan nhat ve chu the do NEU co (khong"
+    " co thi de khoan_id rong, TUYET DOI khong bia id); 'de_xuat_sua' = bo/gioi han dung phan tiet lo"
+    " (vd bo 'ho ten, dia chi cua nguoi to cao'). KHONG ap dung 'khong chac -> hop_le' cho nhom nay."
+    "\n\nCAN CU DA BI SUA DOI (QUAN TRONG - lam tuan tu): neu Khoan me mo dau bang khoi"
+    " '[CAN CU NAY ... DUNG NOI DUNG SAU KHI SUA LAM CHUAN]' kem dong 'Noi dung sau khi sua: ...',"
+    " LUU Y dong do THUONG LA LENH SUA DOI (vd 'sua cum tu A thanh B', 'bo sung ...', 'bai bo ...'),"
+    " KHONG phai dieu luat hoan chinh. BAT BUOC:"
+    "\n  B1. TAI LAP dieu luat MOI hoan chinh = AP lenh sua doi do VAO ban goc Khoan me (ban goc nam"
+    " ngay phia duoi khoi) -> viet lai thanh quy pham HOAN CHINH SAU SUA. Lam viec nay TRONG DAU de"
+    " suy luan, KHONG xuat ban tai lap ra JSON."
+    "\n  B2. SO SANH doan du thao voi DIEU LUAT MOI vua tai lap (TUYET DOI khong dung ban goc da cu)"
+    " -> ket luan vi_pham/hop_le."
+    "\n  B3. Khi vi_pham: 'de_xuat_sua' phai la doan du thao da chinh cho DUNG DIEU LUAT MOI tai lap"
+    " o B1 (khong phai theo ban goc cu)."
+    "\n  Tai lap TRUNG THANH tu (lenh sua + ban goc); neu lenh sua khong du ro de tai lap chinh xac"
+    " thi bam sat phan chac chan, KHONG bia them quy dinh moi."
+    "\n  Neu khoi ghi 'DA HET HIEU LUC' (bai bo): can cu KHONG con hieu luc, KHONG tai lap luat moi;"
+    " du thao van vien dan/ap dung can cu nay -> vi_pham, 'de_xuat_sua' = bo hoac thay viec vien dan"
+    " can cu da bi bai bo (dung can cu khac con hieu luc neu co trong danh sach ung vien)."
     "\n\n'trich_dan' trong can_cu PHAI la nguyen van Khoan me lien quan (khong tom tat)."
 )
 
@@ -130,11 +178,12 @@ TIER2_KHOAN_HE_THONG = HE_THONG_CHUNG + (
 def prompt_tier2_khoan(
     doan_du_thao: dict, khoan_ung_vien: list[dict],
     cap_du_thao: int | None, cap_me_cao_nhat: int | None,
+    trich_yeu: str = "",
 ) -> list[dict[str, str]]:
     """Prompt tier2: phan 1 doan du thao vao 3 trang thai vi_pham|hop_le|chua_xac_dinh."""
     vi_du = (
         "\nVI DU:"
-        "\n[vi_pham - san] Khoan me 'it nhat 300%' (san); du thao 'it nhat 250%'"
+        "\n[vi_pham - san] Khoan me 'it nhat 300%' (san); du thao 'it nhat 300%'"
         " -> vi_pham (duoi san)."
         "\n[vi_pham - tran] Khoan me 'khong qua 60 ngay' (tran); du thao 'khong qua 90 ngay'"
         " -> vi_pham (vuot tran)."
@@ -159,11 +208,30 @@ def prompt_tier2_khoan(
         "\n[chua_xac_dinh] Du thao 'phai nop phi bao ve moi truong 03 nam lien tuc truoc khi nop ho so';"
         " cac Khoan me ung vien chi noi ve ho so chung chung, khong Khoan nao quy dinh ve dieu kien"
         " nay -> chua_xac_dinh (noi dung moi, chua co can cu phap ly)."
+        "\n[vi_pham - sua toi thieu DUNG] Du thao 'cham nhat 03 ngay lam viec'; can cu CUNG linh vuc,"
+        " CUNG chu the, CUNG loai (thoi han) quy dinh '05 ngay lam viec' -> vi_pham; noi_dung_du_thao="
+        "'03 ngay', de_xuat_sua='05 ngay' (chi thay con so, giu nguyen chu the & phan con lai)."
+        "\n[hop_le - loai can cu khong lien quan] Du thao noi ve chu the/linh vuc A; Khoan me ung vien"
+        " noi ve chu the hoac linh vuc KHAC -> LOAI can cu (khong du 3/3 kiem tra lien quan), KHONG"
+        " dung no de bat loi; neu khong con can cu dung -> chua_xac_dinh. TUYET DOI khong doi chu the"
+        " cua du thao theo can cu khac linh vuc."
+        "\n[chua_xac_dinh - khac domain] Trich yeu du thao: 'tiep cong dan, khieu nai, to cao'. Doan"
+        " du thao 'Doi tuong ap dung: cong chuc lam nhiem vu tiep cong dan...'; Khoan me ung vien la"
+        " 'Doi tuong ap dung' cua mot Thong tu ve QUAN LY THUE (ten_van_ban khac linh vuc) -> LOAI,"
+        " tra chua_xac_dinh. KHONG vi_pham du cung cum tu 'Doi tuong ap dung' (trung tu generic)."
+        "\n[vi_pham - hanh vi nhay cam, NGOAI LE] Du thao 'cap quyen xem ho so cho nguoi bi to cao, bao"
+        " gom ho ten, dia chi cua nguoi to cao'; KHONG Khoan me nao cho phep cong khai danh tinh nguoi"
+        " to cao -> vi_pham (tiet lo thong tin ca nhan cua nguoi duoc bao ve, khong co can cu cho phep)."
+        " de_xuat_sua: bo 'ho ten, dia chi cua nguoi to cao' khoi pham vi duoc xem."
     )
     return [
         {"role": "system", "content": TIER2_KHOAN_HE_THONG + vi_du},
         {"role": "user", "content": (
-            "Doan du thao can tham dinh:\n" + str(doan_du_thao) + "\n\n"
+            (f"VAN BAN DU THAO noi ve (trich yeu): {trich_yeu}\n"
+             "-> Dung trich yeu de xac dinh LINH VUC/CHU DE cua doan du thao; LOAI cac Khoan me ung"
+             " vien KHAC linh vuc (vd du thao ve tiep cong dan/khieu nai-to cao ma can cu ve tai"
+             " chinh/thue/xay dung...) theo quy tac KIEM TRA LIEN QUAN.\n\n" if trich_yeu else "")
+            + "Doan du thao can tham dinh:\n" + str(doan_du_thao) + "\n\n"
             "Cac Khoan me ung vien (semantic search, co ngu canh truoc/sau neu co):\n"
             + str(khoan_ung_vien) + "\n\n"
             "Lam theo quy trinh 2 buoc. Tra DUNG 1 object JSON (khong markdown):"
@@ -175,8 +243,10 @@ def prompt_tier2_khoan(
             ' "giai_thich": "<ly do ngan gon, neu ro diem khac biet neu vi_pham>",'
             ' "de_xuat_sua": "<CHI khi vi_pham: CHINH noi_dung_du_thao cho DUNG luat roi chep nguyen'
             ' ban DA SUA vao day. Day la CHUOI THAY THE truc tiep cho noi_dung_du_thao (thay snippet'
-            ' sai bang chuoi nay la van ban dung luat). TUYET DOI KHONG viet dang huong dan/menh lenh'
-            ' nhu \'Sua X thanh Y\', \'nen sua...\', \'can thay...\'; chi ghi dung van ban sau khi sua.'
+            ' sai bang chuoi nay la van ban dung luat). NEU can cu da bi sua doi: sua theo DIEU LUAT'
+            ' MOI da TAI LAP (xem muc CAN CU DA BI SUA DOI), KHONG theo ban goc da cu. TUYET DOI KHONG'
+            ' viet dang huong dan/menh lenh nhu \'Sua X thanh Y\', \'nen sua...\', \'can thay...\';'
+            ' chi ghi dung van ban sau khi sua.'
             ' Vd noi_dung_du_thao=\'tu 13 den 17 nguoi\' -> de_xuat_sua=\'tu 23 den 27 nguoi\'>",'
             ' "tin_cay": 0.0}'
         )},

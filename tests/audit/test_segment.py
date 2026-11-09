@@ -16,17 +16,25 @@ def test_du_thao_co_dieu():
     kq = segment_du_thao(text, "TL-abc")
     assert kq.co_cau_truc_dieu is True
     assert len(kq.can_cu_tho) == 1
-    # Khoan + Diem deu la chunk, Dieu khong tao chunk
+    # Khoan NGAN (< 300 tu) co Diem -> GOP Diem vao Khoan thanh 1 don vi (giam so lan goi LLM)
     caps = {dv.cap for dv in kq.don_vi}
-    assert caps == {"khoan", "diem"}
-    # 2 Khoan + 2 Diem = 4
-    assert len(kq.don_vi) == 4
-    # Khoan co tieu_de = tieu_de Dieu cha; Diem co tieu_de = noi_dung Khoan cha
+    assert caps == {"khoan"}
+    assert len(kq.don_vi) == 2          # K1 D1 (da gop a,b) + K1 D2
     khoan_list = [dv for dv in kq.don_vi if dv.cap == "khoan"]
     assert all(k.tieu_de in {"Phạm vi", "Giải thích"} for k in khoan_list)
-    diem_list = [dv for dv in kq.don_vi if dv.cap == "diem"]
-    # Diem cua K1 D1 phai co tieu_de = noi_dung cua K1 D1 = "Nội dung."
-    assert any("Nội dung" in (d.tieu_de or "") for d in diem_list)
+    # Khoan 1 Dieu 1 da gop ca Diem a va b vao noi_dung
+    k1 = next(k for k in khoan_list if "Nội dung" in k.noi_dung)
+    assert "Diem a" in k1.noi_dung and "Diem b" in k1.noi_dung
+
+
+def test_khoan_dai_giu_diem_rieng():
+    """Khoan + Diem qua dai (>= 300 tu) -> KHONG gop, giu Khoan va tung Diem rieng."""
+    big = " ".join(["noi"] * 300)
+    text = f"Điều 1. Phạm vi\n1. Mo dau khoan.\na) {big}\nb) diem ngan.\n"
+    kq = segment_du_thao(text, "TL-big")
+    caps = {dv.cap for dv in kq.don_vi}
+    assert "diem" in caps              # qua dai -> tach Diem rieng
+    assert sum(dv.cap == "diem" for dv in kq.don_vi) == 2
 
 
 def test_id_duy_nhat_khi_lap_so_khoan():
@@ -81,6 +89,23 @@ def test_chuong_muc_khong_lam_ban_noi_dung():
     assert by_khoan[("1", "1")].chuong == "I"
     assert by_khoan[("2", "1")].chuong == "II"
     assert by_khoan[("1", "1")].noi_dung == "Noi dung khoan mot."
+
+
+def test_bo_co_quan_ky_cuoi_vb():
+    """Co quan ban hanh / chuc danh nguoi ky (CHU HOA) o cuoi VB khong dinh vao chunk;
+    nhung noi dung chu thuong ('Chu tich ...') van giu."""
+    text = (
+        "Điều 19. Xử lý sau giải quyết\n"
+        "Chủ tịch Ủy ban nhân dân xã có trách nhiệm áp dụng biện pháp xử lý.\n"
+        "Đối với vụ việc tố cáo, đơn vị được giao cấp quyền xem hồ sơ điện tử cho người bị tố cáo.\n"
+        "TÒA ÁN NHÂN DÂN TỐI CAO\n"
+        "CHÁNH ÁN\n"
+    )
+    kq = segment_du_thao(text, "TL-ky")
+    blob = " ".join(dv.noi_dung for dv in kq.don_vi)
+    assert "TÒA ÁN NHÂN DÂN TỐI CAO" not in blob and "CHÁNH ÁN" not in blob
+    assert "Chủ tịch Ủy ban nhân dân xã có trách nhiệm" in blob   # noi dung chu thuong: giu
+    assert "người bị tố cáo" in blob
 
 
 def test_bo_quoc_hieu_tieu_ngu():

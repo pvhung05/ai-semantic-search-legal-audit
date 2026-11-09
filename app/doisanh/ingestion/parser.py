@@ -20,7 +20,9 @@ RE_CHUONG = re.compile(r"^Chương\s+([IVXLCDM]+|\d+)\s*[:\.\-]?\s*(.*)$", re.IG
 RE_MUC = re.compile(r"^Mục\s+(\d+)\s*[:\.\-]?\s*(.*)$", re.IGNORECASE)
 RE_DIEU = re.compile(r"^Điều\s+(\d+[a-zđ]?)\s*\.\s*(.*)$")  # Phai co dau cham sau so
 RE_DIEU_MUC_LUC = re.compile(r"\.{3,}\s*\d+\s*$")  # 'Dieu N. Ten .... 15' kieu TOC
-RE_KHOAN = re.compile(r"^(\d+[a-zđ]?)\.\s+(.*)$")
+# (?!\d) sau dau cham: cho phep thieu dau cach ('1.Viec') nhung loai so thap phan ('1.5')
+# va so muc con ('2.1.') - nhung thu co CHU SO ngay sau dau cham.
+RE_KHOAN = re.compile(r"^(\d+[a-zđ]?)\.(?!\d)\s*(.*)$")
 RE_DIEM = re.compile(r"^([a-zđ])\)\s+(.*)$")
 RE_CAN_CU = re.compile(r"^Căn cứ\s+", re.IGNORECASE)
 RE_THEO_DE_NGHI = re.compile(r"^(Theo đề nghị|Theo đề xuất)", re.IGNORECASE)

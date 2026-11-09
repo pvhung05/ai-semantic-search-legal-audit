@@ -56,8 +56,7 @@ def _noi_dung_comment(vp: dict) -> str:
             parts.append(f"⚠ Căn cứ đã BỊ SỬA ĐỔI bởi {nguon}{hau}.")
             if cc.get("noi_dung_sau_sua"):
                 parts.append("Nội dung sau khi sửa: " + cc["noi_dung_sau_sua"])
-    if vp.get("de_xuat_sua"):
-        parts.append("Đề xuất sửa: " + vp["de_xuat_sua"])
+    # Khong lap 'de_xuat_sua' trong comment: ban sua da duoc chen truc tiep thanh track-change.
     return "\n".join(parts) or "Vi phạm (AI LEGAL)."
 
 

@@ -202,7 +202,7 @@ async def upload_draft(
 # ============================================================
 class AuditRequest(BaseModel):
     tai_lieu_id: str
-    top_k: int = Field(5, ge=1, le=10, description="So Khoan me ung vien moi chunk")
+    top_k: int = Field(8, ge=1, le=10, description="So Khoan me ung vien moi chunk")
     van_ban_me_ids: Optional[list[str]] = Field(
         None,
         description="Tuy chon. Neu co: chi tim trong cac VB me nay. Neu rong: tim toan kho.",
@@ -212,7 +212,8 @@ class AuditRequest(BaseModel):
     )
 
 
-def _so_sanh_chunk(dv_dict: dict, ung_vien: list[dict], is_local: bool | None = None) -> dict:
+def _so_sanh_chunk(dv_dict: dict, ung_vien: list[dict], is_local: bool | None = None,
+                   trich_yeu: str = "") -> dict:
     """Goi LLM so sanh 1 chunk du thao voi top-k Khoan me. Tra 1 verdict object."""
     if not ung_vien:
         return {}
@@ -224,6 +225,7 @@ def _so_sanh_chunk(dv_dict: dict, ung_vien: list[dict], is_local: bool | None = 
     uv_rut_gon = [
         {
             "khoan_id": u["khoan_id"], "so_hieu": u["so_hieu"],
+            "ten_van_ban": u.get("ten_van_ban", ""),   # ten luat nguon -> LLM biet LINH VUC/domain
             "phan": u.get("phan"), "chuong": u.get("chuong"),
             "so_dieu": u["so_dieu"], "so_khoan": u["so_khoan"], "diem": u["diem"],
             "tieu_de_dieu": u["tieu_de_dieu"],
@@ -232,7 +234,7 @@ def _so_sanh_chunk(dv_dict: dict, ung_vien: list[dict], is_local: bool | None = 
         }
         for u in ung_vien
     ]
-    messages = prompt_tier2_khoan(doan, uv_rut_gon, None, None)
+    messages = prompt_tier2_khoan(doan, uv_rut_gon, None, None, trich_yeu=trich_yeu)
     try:
         data = goi_json(messages, temperature=0.1, is_local=is_local)
     except Exception as exc:
@@ -265,6 +267,7 @@ def audit(req: AuditRequest) -> dict:
             raise HTTPException(404, f"tai_lieu_id '{req.tai_lieu_id}' khong ton tai")
         rows = rt.danh_sach_don_vi(conn, req.tai_lieu_id)
     can_cu_tho = dt["can_cu_tho"]
+    trich_yeu = dt.get("trich_yeu", "")   # chu de chung -> gui kem prompt de loc can cu khac linh vuc
     cap_tai_lieu = None  # user khong cung cap cap tuong duong
     from app.doisanh.audit.segment import DonViSegment
     don_vi_list = [DonViSegment(
@@ -335,7 +338,7 @@ def audit(req: AuditRequest) -> dict:
             "id": dv.id, "so_dieu": dv.so_dieu, "so_khoan": dv.so_khoan,
             "diem": dv.diem, "tieu_de": dv.tieu_de, "noi_dung": dv.noi_dung,
         }
-        kq_llm = _so_sanh_chunk(dv_dict, ung_vien, is_local=req.is_local)
+        kq_llm = _so_sanh_chunk(dv_dict, ung_vien, is_local=req.is_local, trich_yeu=trich_yeu)
         return dv, ung_vien, kq_llm
 
     def _chuan_hoa_trang_thai(tt: str) -> str:

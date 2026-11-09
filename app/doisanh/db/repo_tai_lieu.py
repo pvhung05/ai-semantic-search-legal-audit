@@ -32,6 +32,7 @@ def luu_du_thao(conn: Connection, du_thao_id: str, noi_dung: str, seg: KetQuaSeg
         "don_vi": [asdict(dv) for dv in seg.don_vi],
         "can_cu_tho": seg.can_cu_tho,
         "co_cau_truc_dieu": seg.co_cau_truc_dieu,
+        "trich_yeu": seg.trich_yeu,
     }
     with conn.cursor() as cur:
         cur.execute(
@@ -93,6 +94,7 @@ def doc_du_thao(conn: Connection, du_thao_id: str) -> dict[str, Any] | None:
         "noi_dung": noi_dung,
         "can_cu_tho": cay.get("can_cu_tho", []),
         "co_cau_truc_dieu": cay.get("co_cau_truc_dieu", False),
+        "trich_yeu": cay.get("trich_yeu", ""),
     }
 
 
