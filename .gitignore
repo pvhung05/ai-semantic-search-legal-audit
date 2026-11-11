@@ -42,6 +42,7 @@ Dockerfile.doisanh
 # Tài liệu nội bộ / công cụ cục bộ (không công khai)
 CLAUDE.md
 PLAN.md
+KIEN_TRUC_HE_THONG.md
 
 # Mọi file có chữ audit
 *audit*
