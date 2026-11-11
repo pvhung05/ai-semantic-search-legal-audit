@@ -15,7 +15,6 @@ htmlcov/
 venv/
 .env
 .env.*
-!.env.example
 
 # Dữ liệu runtime: kho cào, file upload (STORAGE_PATH), dự thảo, kết quả, báo cáo
 data/
@@ -43,4 +42,6 @@ Dockerfile.doisanh
 # Tài liệu nội bộ / công cụ cục bộ (không công khai)
 CLAUDE.md
 PLAN.md
-audit_legal.postman_collection.json
+
+# Mọi file có chữ audit
+*audit*
