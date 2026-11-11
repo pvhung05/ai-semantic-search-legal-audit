@@ -57,122 +57,63 @@ LOAI_LOI_TIER2 = [
 TRANG_THAI_TIER2 = ["vi_pham", "hop_le", "chua_xac_dinh"]
 
 
-TIER2_KHOAN_HE_THONG = HE_THONG_CHUNG + (
-    " Nhiem vu: tham dinh MOT doan noi dung du thao bang cach so sanh voi cac Khoan me ung vien"
-    " (lay tu semantic search). Phan loai vao DUNG 1 trong 3 trang thai:"
-    "\n  - vi_pham: du thao TRAI/SAI so voi quy pham phap luat tuong ung."
-    "\n  - hop_le: du thao PHU HOP voi quy pham phap luat (dung, hoac chat che hon nhung van"
-    " trong khuon kho luat cho phep)."
-    "\n  - chua_xac_dinh: KHONG co Khoan me nao thuc su dieu chinh CUNG VAN DE voi doan du thao."
-    " Tuc la noi dung nay CO trong du thao nhung CHUA CO can cu phap ly de doi chieu."
-    "\n\nQUY TRINH BAT BUOC (lam tuan tu):"
-    "\nBUOC 1 - TIM CAN CU: Trong cac Khoan me ung vien, co Khoan nao THUC SU dieu chinh dung"
-    " van de ma doan du thao dang noi khong? (ung vien chi gan ve ngu nghia, khong phai luc nao"
-    " cung la can cu dung)."
-    " Moi ung vien co truong 'phan'/'chuong' (vi tri trong cay van ban): dung CHU DE cua Phan/Chuong"
-    " de xac dinh ung vien co dung mang van de khong; neu chu de Chuong lech han thi thuong khong phai can cu dung."
-    "\n   - Neu KHONG co Khoan nao dung van de -> trang_thai = 'chua_xac_dinh'. Dung lai."
-    "\n   - Neu CO -> chon Khoan me lien quan nhat lam can cu, sang BUOC 2."
-    "\n   - NOI CAC KHOAN CUNG MOT DIEU/so_hieu: mot hinh thuc/hanh vi neu o khoan nay co the bi"
-    " rang buoc boi THOI HAN/GIOI HAN o khoan khac cung Dieu. Vd 'dang tai cong TTDT' (khoan 2 la"
-    " mot hinh thuc 'cong khai') bi rang buoc boi thoi han cong khai o khoan 1 cung Dieu -> dung"
-    " thoi han do lam can cu, dung ket luan 'chua_xac_dinh' chi vi khong co khoan rieng."
-    "\nBUOC 2 - SO SANH voi Khoan me lien quan nhat:"
-    "\n   - Neu du thao PHU HOP -> trang_thai = 'hop_le'."
-    "\n   - Neu du thao TRAI/SAI -> trang_thai = 'vi_pham'."
-    "\n\n*** SO SANH SO LIEU THEO LOAI RANG BUOC (QUAN TRONG NHAT) ***"
-    "\nMoi Khoan me ung vien co truong 'loai_rang_buoc' da duoc he thong nhan dien san"
-    " (san/tran/co_dinh/trao_quyen/khong_ro). Khi du thao va Khoan me cung noi ve 1 con so"
-    " (gio, ngay, thang, nam, %, tien, tuoi...), ap dung DUNG quy tac theo loai:"
-    "\n  - 'san' (luat dat muc TOI THIEU: 'it nhat', 'toi thieu', 'khong thap hon'):"
-    "\n       du thao THAP HON san -> vi_pham. Du thao BANG hoac CAO HON san -> hop_le."
-    "\n       Vd luat 'it nhat 300%', du thao 300% -> vi_pham; du thao 350% -> hop_le."
-    "\n  - 'tran' (luat dat muc TOI DA: 'khong qua', 'toi da', 'khong vuot qua'):"
-    "\n       du thao CAO HON tran -> vi_pham. Du thao BANG hoac THAP HON tran -> hop_le."
-    "\n       Vd luat 'khong qua 60 ngay', du thao 90 -> vi_pham; du thao 45 ngay -> hop_le."
-    "\n       Vd luat 'khong qua 48 gio/tuan', du thao 44h -> hop_le (trong tran)."
-    "\n  - 'co_dinh' (luat dat con so CO DINH: 'la', 'bang', khong co tu san/tran):"
-    "\n       du thao KHAC con so do (cao hon HAY thap hon) -> vi_pham (doi so lieu)."
-    "\n       Vd luat 'vao lop mot la 06 tuoi', du thao 07 tuoi -> vi_pham."
-    "\n  - 'trao_quyen' (luat trao quyen tu quyet: 'do ... quy dinh', 'theo thoa thuan',"
-    " 'hai ben thoa thuan'): du thao chon mot muc cu the trong pham vi duoc trao -> hop_le."
-    "\n  - 'khong_ro': dua vao ngu canh de suy luan san/tran/co_dinh roi ap quy tac tren."
-    "\nNEU du thao dat mot con so ma Khoan me KHONG he quy dinh con so do (luat chi trao quyen"
-    " hoac khong de cap) va cung khong co Khoan me nao khac quy dinh -> chua_xac_dinh."
-    "\n\nTIEU CHI 'vi_pham' khac (ngoai so lieu):"
-    "\n  - LOAI TRU doi tuong ma luat bao ve: du thao 'chi/duy nhat/tru X' lam mat quyen doi tuong luat."
-    "\n  - THEM doi tuong/dieu kien ma luat da loai tru, hoac trai gioi han luat."
-    "\n  - TRICH DAN SAI: du thao dat trong dau nhay '...' noi dung luat nhung trich sai so/chu."
-    "\n  - VUOT THAM QUYEN: VB cap duoi 'bai bo'/'sua doi' Khoan/Dieu cua Luat cap tren."
-    "\n  - MAU THUAN truc tiep (vd luat 'co quyen'/tuy chon con du thao 'bat buoc')."
-    "\n  - BO SOT DIEU KIEN lam SAI BAN CHAT: neu du thao chi dien dat gon hon nhung KHONG sai"
-    " ban chat -> van hop_le; chi vi_pham khi viec bo sot lam TRAI quy pham (vd du thao dat"
-    " dieu kien NGUOC voi luat)."
-    "\n\nTIEU CHI 'hop_le' (du thao dung):"
-    "\n  - Noi dung giong hoac dong nghia voi Khoan me."
-    "\n  - So lieu thoa man rang buoc san/tran/co_dinh/trao_quyen nhu tren."
-    "\n  - Du thao chi NHAC mot phan doi tuong/noi dung ma khong dung tu loai tru"
-    " ('chi','duy nhat','rieng','tru') -> hop_le (khong loai tru ai)."
-    "\n\nLUU Y - NOI DUNG HANH CHINH cua VB cap duoi LUON 'hop_le' (khong vi pham, khong phai"
-    " chua_xac_dinh), du Khoan me khac: Dieu ve PHAM VI/DOI TUONG AP DUNG, GIOI HAN DIA BAN"
-    " ('tren dia ban tinh H'), DIEU KHOAN THI HANH ('... chiu trach nhiem thi hanh'),"
-    " HIEU LUC THI HANH ('co hieu luc tu ngay...'). Day la noi dung ky thuat soan thao,"
-    " trong tham quyen co quan ban hanh."
-    "\n\nQUY TAC RA SOAT (BAT BUOC - uu tien KHONG sua):"
-    "\n1. MAC DINH KHONG SUA. Chi ket luan vi_pham khi doan du thao TRAI / THIEU / VUOT QUA mot"
-    " quy dinh BAT BUOC cua can cu. 'Khac cach dien dat' hoac 'can cu co THEM noi dung' KHONG phai"
-    " vi_pham -> hop_le."
-    "\n2. KIEM TRA LIEN QUAN truoc khi dung 1 Khoan me lam can cu - phai dung CA 3: (a) cung LINH"
-    " VUC; (b) cung CHU THE; (c) cung LOAI NOI DUNG (thoi han/tham quyen/trach nhiem/dinh nghia...)."
-    " Thieu 1 -> LOAI can cu do. Neu khong con can cu nao dung ca 3 -> chua_xac_dinh."
-    "\n2b. CHONG AP CHEO DOMAIN (BAT BUOC): moi Khoan me ung vien co truong 'ten_van_ban' (ten luat"
-    " nguon). SO 'ten_van_ban' + noi dung voi TRICH YEU cua du thao (neu co o dau prompt). Neu luat"
-    " nguon thuoc LINH VUC KHAC HAN du thao (vd du thao ve tiep cong dan/khieu nai-to cao ma can cu"
-    " la luat/thong tu ve tai chinh, thue, xay dung, giao thong, giao duc, dat dai...) -> LOAI can"
-    " cu do, tra chua_xac_dinh. TUYET DOI KHONG ket luan vi_pham dua tren can cu KHAC LINH VUC, KE"
-    " CA khi TRUNG cum tu chung nhu 'doi tuong ap dung', 'pham vi dieu chinh', 'giai thich tu ngu',"
-    " 'nguyen tac'... Trung cum tu generic KHONG phai la cung van de."
-    "\n3. KIEM TRA HIEU LUC. Can cu da bi sua doi -> chi dung ban sau sua (xem muc ben duoi). Neu"
-    " can cu NHAC den cap/don vi to chuc DA BI BAI BO hoac DOI TEN theo cai cach bo may -> do la"
-    " ban CU, phai tim ban sua; khong co ban sua / khong chac -> chua_xac_dinh, KHONG sua du thao"
-    " theo ban cu."
-    "\n4. GIU CHU THE & PHAM VI. de_xuat_sua KHONG duoc doi chu the cua doan du thao, KHONG thay"
-    " nhiem vu cu the trong quy trinh bang nhiem vu chung cua chuc danh trong luat to chuc."
-    "\n5. SUA TOI THIEU. KHONG chep nguyen van luat vao du thao; KHONG gop nhieu diem thanh mot."
-    "\n6. KHI KHONG CHAC (hieu luc chua ro, lien quan khong du 3/3, hoac do tin cay thap) -> KHONG"
-    " ket luan vi_pham; chon chua_xac_dinh (chua co can cu doi chieu) hoac hop_le (khong thay trai"
-    " ro rang)."
-    "\nTU KIEM TRA truoc khi tra vi_pham (loai neu khong dat): de_xuat_sua co lap doan khong? chu"
-    " the co giu nguyen khong? co vo tinh ap theo cap/don vi to chuc da bi bo khong? de_xuat co lam"
-    " mat noi dung dac thu cua quy trinh khong?"
-    "\n\nNGOAI LE (bat loi DU KHONG co dieu cam nguyen van - UU TIEN hon rule 1 va rule 6): neu doan"
-    " du thao THUC HIEN mot HANH VI NHAY CAM ma KHONG Khoan me nao CHO PHEP ro rang -> vi_pham."
-    " Hanh vi nhay cam gom: (i) tiet lo/cong khai THONG TIN CA NHAN (ho ten, dia chi, so dien thoai,"
-    " nhan than...) cua nguoi duoc phap luat BAO VE (nguoi to cao, nguoi lam chung, nguoi bi hai, tre"
-    " em, bi can/bi cao chua thanh nien...); (ii) cap quyen truy cap / chia se du lieu ca nhan cho ben"
-    " KHONG co tham quyen; (iii) bo qua buoc bao mat/bao ve BAT BUOC. Khi gap nhom nay:"
-    " trang_thai=vi_pham; 'giai_thich' neu ro 'hanh vi nhay cam <X> khong co can cu cho phep, trai"
-    " nguyen tac bao ve <chu the>'; 'can_cu' tro Khoan me lien quan nhat ve chu the do NEU co (khong"
-    " co thi de khoan_id rong, TUYET DOI khong bia id); 'de_xuat_sua' = bo/gioi han dung phan tiet lo"
-    " (vd bo 'ho ten, dia chi cua nguoi to cao'). KHONG ap dung 'khong chac -> hop_le' cho nhom nay."
-    "\n\nCAN CU DA BI SUA DOI (QUAN TRONG - lam tuan tu): neu Khoan me mo dau bang khoi"
-    " '[CAN CU NAY ... DUNG NOI DUNG SAU KHI SUA LAM CHUAN]' kem dong 'Noi dung sau khi sua: ...',"
-    " LUU Y dong do THUONG LA LENH SUA DOI (vd 'sua cum tu A thanh B', 'bo sung ...', 'bai bo ...'),"
-    " KHONG phai dieu luat hoan chinh. BAT BUOC:"
-    "\n  B1. TAI LAP dieu luat MOI hoan chinh = AP lenh sua doi do VAO ban goc Khoan me (ban goc nam"
-    " ngay phia duoi khoi) -> viet lai thanh quy pham HOAN CHINH SAU SUA. Lam viec nay TRONG DAU de"
-    " suy luan, KHONG xuat ban tai lap ra JSON."
-    "\n  B2. SO SANH doan du thao voi DIEU LUAT MOI vua tai lap (TUYET DOI khong dung ban goc da cu)"
-    " -> ket luan vi_pham/hop_le."
-    "\n  B3. Khi vi_pham: 'de_xuat_sua' phai la doan du thao da chinh cho DUNG DIEU LUAT MOI tai lap"
-    " o B1 (khong phai theo ban goc cu)."
-    "\n  Tai lap TRUNG THANH tu (lenh sua + ban goc); neu lenh sua khong du ro de tai lap chinh xac"
-    " thi bam sat phan chac chan, KHONG bia them quy dinh moi."
-    "\n  Neu khoi ghi 'DA HET HIEU LUC' (bai bo): can cu KHONG con hieu luc, KHONG tai lap luat moi;"
-    " du thao van vien dan/ap dung can cu nay -> vi_pham, 'de_xuat_sua' = bo hoac thay viec vien dan"
-    " can cu da bi bai bo (dung can cu khac con hieu luc neu co trong danh sach ung vien)."
-    "\n\n'trich_dan' trong can_cu PHAI la nguyen van Khoan me lien quan (khong tom tat)."
-)
+TIER2_KHOAN_HE_THONG = HE_THONG_CHUNG + """
+Nhiệm vụ: thẩm định MỘT đoạn dự thảo, CHỈ dựa trên các CĂN CỨ (Khoản mẹ ứng viên) được cung cấp, và xếp vào ĐÚNG 1 trong 3 trạng thái:
+- vi_pham: đoạn dự thảo MÂU THUẪN với một căn cứ cụ thể (trích được nguyên văn câu căn cứ bị trái).
+- hop_le: CÓ căn cứ điều chỉnh ĐÚNG vấn đề của đoạn VÀ các ý chính của đoạn khớp với căn cứ (hoặc chặt hơn nhưng vẫn trong khuôn khổ căn cứ cho phép).
+- chua_xac_dinh: không có căn cứ nào điều chỉnh đúng vấn đề, HOẶC căn cứ chỉ nói một phần còn ý chính của đoạn không có quy định để đối chiếu.
+
+NGUYÊN TẮC CỐT LÕI
+1. "Không trái" KHÔNG phải là "hợp lệ". Chỉ được kết luận hop_le khi chỉ ra được căn cứ THẬT SỰ NÓI đúng ý chính của đoạn. Nếu lý do chỉ là "phù hợp với quy định chung", "hợp lý", "không trái quy định hiện hành", "cụ thể hóa…" mà không có căn cứ nói ý đó -> chua_xac_dinh.
+2. Không tự thêm ngoại lệ, điều kiện, "trường hợp cần thiết" mà căn cứ không ghi. Ứng viên chỉ gần về ngữ nghĩa, không phải lúc nào cũng là căn cứ đúng.
+3. Không suy ra một cơ quan, cá nhân, hệ thống "được phép"/"có thẩm quyền" làm việc gì chỉ vì căn cứ không cấm. Căn cứ giao việc/quyền cho chủ thể A mà dự thảo giao cho chủ thể B, hoặc mở rộng/thu hẹp quyền, nghĩa vụ trái căn cứ -> vi_pham.
+4. Phân biệt rõ các chế định: khiếu nại – tố cáo – kiến nghị, phản ánh; người khiếu nại – người tố cáo; người bị khiếu nại – người bị tố cáo; giải quyết lần đầu – lần hai. Không áp quy định của chế định này sang chế định khác.
+
+QUY TRÌNH BẮT BUỘC (làm tuần tự, trong đầu)
+BƯỚC 1 - TÁCH Ý: xác định các ý chính của đoạn: chủ thể, hành vi/quyền/nghĩa vụ, thẩm quyền, thời hạn, số liệu, đối tượng.
+BƯỚC 2 - TÌM CĂN CỨ cho từng ý. Một ứng viên chỉ là căn cứ khi đủ CẢ 3: (a) cùng LĨNH VỰC (so 'ten_van_ban' và nội dung với TRÍCH YẾU dự thảo); (b) cùng CHỦ THỂ; (c) cùng LOẠI NỘI DUNG (thời hạn/thẩm quyền/trách nhiệm/định nghĩa/thủ tục…). Thiếu 1 -> loại. Trùng cụm từ chung ("đối tượng áp dụng", "phạm vi điều chỉnh", "nguyên tắc"…) KHÔNG phải cùng vấn đề. Dùng 'phan'/'chuong' để nhận chủ đề; Chương lệch hẳn thường không phải căn cứ đúng. Các Khoản cùng một Điều/so_hieu bổ sung cho nhau (vd hình thức ở khoản 2 bị ràng buộc bởi thời hạn ở khoản 1 cùng Điều).
+BƯỚC 3 - KẾT LUẬN:
+   - Có ý MÂU THUẪN với căn cứ (theo các tiêu chí bên dưới) -> vi_pham.
+   - Mọi ý chính đều có căn cứ nói đúng và khớp -> hop_le.
+   - Còn lại (ý chính không có căn cứ, căn cứ khác lĩnh vực, hiệu lực chưa rõ, không chắc) -> chua_xac_dinh. TUYỆT ĐỐI không chọn hop_le khi không chắc.
+
+SO SÁNH SỐ LIỆU THEO 'loai_rang_buoc' của Khoản mẹ (san/tran/co_dinh/trao_quyen/khong_ro):
+- 'san' (tối thiểu: "ít nhất", "không thấp hơn"): dự thảo THẤP HƠN sàn -> vi_pham; BẰNG hoặc CAO HƠN -> hop_le.
+- 'tran' (tối đa/thời hạn: "không quá", "tối đa", "trong thời hạn", "chậm nhất"): dự thảo CAO/DÀI HƠN trần -> vi_pham; BẰNG hoặc THẤP/NGẮN HƠN -> hop_le. Vd luật "trong thời hạn 10 ngày làm việc", dự thảo "30 ngày làm việc" -> vi_pham.
+- 'co_dinh' (con số cố định: "là", "bằng"): dự thảo KHÁC con số đó -> vi_pham.
+- 'trao_quyen' ("do … quy định", "theo thỏa thuận"): CHỈ khi luật không đặt con số; dự thảo chọn mức cụ thể trong phạm vi được trao -> hop_le. Luật có ngoại lệ cho phép kéo dài ("trường hợp phức tạp") KHÔNG có nghĩa dự thảo được tự nâng thời hạn cơ bản hay thời gian gia hạn vượt luật.
+- 'khong_ro': suy từ ngữ cảnh ra san/tran/co_dinh rồi áp quy tắc trên.
+- Dự thảo đặt một con số mà không căn cứ nào quy định -> chua_xac_dinh.
+
+TIÊU CHÍ vi_pham KHÁC
+- LOẠI TRỪ đối tượng luật bảo vệ ("chỉ", "duy nhất", "trừ" làm mất quyền của đối tượng); THÊM đối tượng/điều kiện luật đã loại trừ.
+- THÊM TRƯỜNG HỢP VÀO DANH SÁCH ĐÓNG: căn cứ liệt kê các trường hợp được từ chối, hạn chế quyền, xử lý, thu hồi… ("được thực hiện trong các trường hợp sau", "chỉ được … khi") mà dự thảo đặt thêm trường hợp KHÔNG có trong danh sách (vd "ngoài các trường hợp theo quy định, … được từ chối …") -> vi_pham, DÙ không căn cứ nào nhắc đến trường hợp mới đó. Đây KHÔNG phải "chưa có căn cứ": chính danh sách đóng là căn cứ; 'trich_dan' = câu mở đầu danh sách. 'de_xuat_sua' = bỏ trường hợp tự thêm.
+- TRÍCH DẪN SAI nội dung luật đặt trong ngoặc kép.
+- VƯỢT THẨM QUYỀN: văn bản cấp dưới bãi bỏ/sửa đổi Khoản/Điều của luật cấp trên.
+- MÂU THUẪN TRỰC TIẾP (vd luật "có quyền"/tùy chọn, dự thảo "bắt buộc"); đặt điều kiện NGƯỢC với luật.
+- Dự thảo chỉ diễn đạt gọn hơn, hoặc chỉ nhắc một phần đối tượng mà không dùng từ loại trừ, nhưng KHÔNG sai bản chất -> không phải vi_pham.
+- CỤ THỂ HÓA trong khuôn khổ -> KHÔNG phải vi_pham: căn cứ quy định chung cho "cơ quan, đơn vị, địa phương"/"cơ quan có thẩm quyền" mà dự thảo nêu cụ thể các đơn vị thuộc HỆ THỐNG của cơ quan ban hành dự thảo. Danh sách của dự thảo khác danh sách của căn cứ CHỈ là vi_pham khi căn cứ là danh sách ĐÓNG/bắt buộc áp dụng cho CHÍNH chủ thể của dự thảo và dự thảo trái nó.
+- KHÁC KHÁI NIỆM -> không cùng vấn đề: căn cứ và dự thảo dùng hai khái niệm khác nhau (vd "nơi tổ chức" khác "điểm cầu tham gia"; "cơ quan tiếp nhận" khác "cơ quan giải quyết") thì không dùng căn cứ đó để bắt lỗi.
+
+NGOẠI LỆ - HÀNH VI NHẠY CẢM (bắt lỗi DÙ không có điều cấm nguyên văn, ưu tiên hơn mọi quy tắc "không chắc"): nếu đoạn dự thảo (i) tiết lộ/công khai THÔNG TIN CÁ NHÂN (họ tên, địa chỉ, số điện thoại, nhân thân…) của người được pháp luật BẢO VỆ (người tố cáo, người làm chứng, người bị hại, trẻ em…); (ii) cấp quyền truy cập/chia sẻ dữ liệu cá nhân cho bên KHÔNG có thẩm quyền; (iii) bỏ qua bước bảo mật BẮT BUỘC - mà KHÔNG căn cứ nào CHO PHÉP rõ ràng -> vi_pham. 'giai_thich' nêu "hành vi nhạy cảm <X> không có căn cứ cho phép, trái nguyên tắc bảo vệ <chủ thể>"; 'can_cu' trỏ Khoản mẹ liên quan nhất về chủ thể đó nếu có (không có thì để khoan_id rỗng, TUYỆT ĐỐI không bịa id); 'de_xuat_sua' = bỏ/giới hạn đúng phần tiết lộ.
+
+NỘI DUNG HÀNH CHÍNH của văn bản cấp dưới -> hop_le dù không có căn cứ riêng: phạm vi/đối tượng áp dụng, giới hạn địa bàn, điều khoản thi hành ("… chịu trách nhiệm thi hành"), hiệu lực thi hành ("có hiệu lực từ ngày…").
+
+HIỆU LỰC CĂN CỨ
+- Nếu Khoản mẹ mở đầu bằng khối '[CAN CU NAY ... DUNG NOI DUNG SAU KHI SUA LAM CHUAN]' kèm dòng 'Noi dung sau khi sua: ...': dòng đó THƯỜNG LÀ LỆNH SỬA ĐỔI ("sửa cụm từ A thành B", "bổ sung…", "bãi bỏ…"), không phải điều luật hoàn chỉnh. B1: tái lập (trong đầu, không xuất ra JSON) quy phạm SAU SỬA = áp lệnh sửa vào bản gốc ngay phía dưới khối; trung thành, không bịa thêm. B2: so sánh dự thảo với quy phạm sau sửa (KHÔNG dùng bản gốc cũ). B3: khi vi_pham, 'de_xuat_sua' theo quy phạm sau sửa.
+- Khối ghi 'DA HET HIEU LUC' (bãi bỏ): căn cứ không còn hiệu lực, không dùng làm cơ sở kết luận; dự thảo vẫn viện dẫn/áp dụng căn cứ này -> vi_pham, 'de_xuat_sua' = bỏ hoặc thay bằng căn cứ còn hiệu lực trong danh sách ứng viên.
+- Căn cứ nhắc cấp/đơn vị tổ chức đã bị bãi bỏ hoặc đổi tên -> đó là bản cũ; không có bản sửa/không chắc -> chua_xac_dinh, KHÔNG sửa dự thảo theo bản cũ.
+
+KHI vi_pham - SỬA TỐI THIỂU: 'de_xuat_sua' là chuỗi thay thế trực tiếp cho 'noi_dung_du_thao' nên phải CÙNG PHẠM VI với nó (noi_dung_du_thao là điểm d), đ) thì de_xuat_sua chỉ gồm điểm d), đ) đã sửa; không viết lại cả đoạn). Giữ nguyên chủ thể và hệ thống cơ quan của dự thảo, chỉ thay đúng phần sai; TUYỆT ĐỐI không thay chủ thể/đơn vị của dự thảo bằng chủ thể của căn cứ thuộc hệ thống cơ quan khác; không chép nguyên văn luật vào dự thảo; không gộp nhiều điểm thành một; không thay nhiệm vụ cụ thể trong quy trình bằng nhiệm vụ chung của chức danh.
+
+TỰ KIỂM TRA TRƯỚC KHI TRẢ JSON
+(a) hop_le: 'can_cu.trich_dan' có THẬT SỰ nói ý chính của đoạn không? Nếu không -> chua_xac_dinh.
+(b) vi_pham: có trích được nguyên văn câu căn cứ bị trái không (trừ ngoại lệ hành vi nhạy cảm)? Nếu không -> chua_xac_dinh.
+(c) chua_xac_dinh: 'giai_thich' nêu cụ thể còn thiếu quy định về vấn đề gì.
+(d) 'giai_thich' khớp với 'trang_thai', không có câu tự mâu thuẫn.
+(e) vi_pham: nếu muốn "sửa" phải đổi chủ thể/đơn vị của dự thảo sang chủ thể thuộc hệ thống cơ quan khác, hoặc chép danh sách của căn cứ thay cho danh sách của dự thảo, thì đó KHÔNG phải vi phạm -> xem lại, thường là hop_le (cụ thể hóa) hoặc chua_xac_dinh.
+'trich_dan' trong 'can_cu' PHẢI là nguyên văn Khoản mẹ liên quan (không tóm tắt).
+"""
 
 
 def prompt_tier2_khoan(
@@ -183,10 +124,14 @@ def prompt_tier2_khoan(
     """Prompt tier2: phan 1 doan du thao vao 3 trang thai vi_pham|hop_le|chua_xac_dinh."""
     vi_du = (
         "\nVI DU:"
-        "\n[vi_pham - san] Khoan me 'it nhat 300%' (san); du thao 'it nhat 300%'"
+        "\n[vi_pham - san] Khoan me 'it nhat 300%' (san); du thao 'it nhat 250%'"
         " -> vi_pham (duoi san)."
         "\n[vi_pham - tran] Khoan me 'khong qua 60 ngay' (tran); du thao 'khong qua 90 ngay'"
         " -> vi_pham (vuot tran)."
+        "\n[vi_pham - vuot thoi han luat dinh] Khoan me quy dinh thoi han 'trong thoi han 10 ngay lam viec' (tran);"
+        " du thao quy dinh 'trong thoi han 30 ngay lam viec... truong hop vu viec phuc tap co the keo dai them"
+        " khong qua 30 ngay' -> vi_pham (30 ngay vuot tran 10 ngay cua luat; du co neu vu viec phuc tap thi"
+        " moc thoi han co ban van phai tuan thu luat cap tren). De xuat sua: giam moc co ban ve '10 ngay lam viec'."
         "\n[vi_pham - co_dinh] Khoan me 'vao lop mot la 06 tuoi' (co_dinh); du thao '07 tuoi'"
         " -> vi_pham (doi so lieu co dinh)."
         "\n[vi_pham] Du thao 'bai bo khoan 2 Dieu 107 Bo luat Lao dong' -> vi_pham (vuot tham quyen)."
@@ -211,7 +156,19 @@ def prompt_tier2_khoan(
         "\n[vi_pham - sua toi thieu DUNG] Du thao 'cham nhat 03 ngay lam viec'; can cu CUNG linh vuc,"
         " CUNG chu the, CUNG loai (thoi han) quy dinh '05 ngay lam viec' -> vi_pham; noi_dung_du_thao="
         "'03 ngay', de_xuat_sua='05 ngay' (chi thay con so, giu nguyen chu the & phan con lai)."
-        "\n[hop_le - loai can cu khong lien quan] Du thao noi ve chu the/linh vuc A; Khoan me ung vien"
+        "\n[chua_xac_dinh - khong co can cu noi y chinh] Du thao 'He thong tu dong gui thong bao ket"
+        " qua cho cong dan qua tin nhan'; cac Khoan me ung vien chi quy dinh chung ve tiep cong dan,"
+        " khong Khoan nao quy dinh viec gui thong bao qua he thong -> chua_xac_dinh. KHONG hop_le chi"
+        " vi 'phu hop quy dinh chung / khong trai'."
+        "\n[vi_pham - them truong hop vao danh sach dong] Khoan me 'Viec thu hoi giay phep duoc thuc"
+        " hien trong cac truong hop sau: a)...; b)...'; du thao 'Ngoai cac truong hop tren, co quan"
+        " duoc thu hoi giay phep khi doanh nghiep cham nop bao cao' -> vi_pham (them truong hop ngoai"
+        " danh sach dong). KHONG phai chua_xac_dinh du khong Khoan nao noi ve 'cham nop bao cao'."
+        "\n[hop_le - cu the hoa trong khuon kho] Khoan me 'co quan, don vi to chuc tap huan tai tru so"
+        " cua minh'; du thao cua Bo X 'tap huan tai tru so Cuc A va Cuc B thuoc Bo' -> hop_le (cu the"
+        " hoa cho he thong cua Bo X). KHONG vi_pham, va KHONG de xuat thay 'Cuc A, Cuc B' bang danh"
+        " sach chung cua Khoan me."
+        "\n[chua_xac_dinh - loai can cu khong lien quan] Du thao noi ve chu the/linh vuc A; Khoan me ung vien"
         " noi ve chu the hoac linh vuc KHAC -> LOAI can cu (khong du 3/3 kiem tra lien quan), KHONG"
         " dung no de bat loi; neu khong con can cu dung -> chua_xac_dinh. TUYET DOI khong doi chu the"
         " cua du thao theo can cu khac linh vuc."
@@ -234,7 +191,7 @@ def prompt_tier2_khoan(
             + "Doan du thao can tham dinh:\n" + str(doan_du_thao) + "\n\n"
             "Cac Khoan me ung vien (semantic search, co ngu canh truoc/sau neu co):\n"
             + str(khoan_ung_vien) + "\n\n"
-            "Lam theo quy trinh 2 buoc. Tra DUNG 1 object JSON (khong markdown):"
+            "Lam theo QUY TRINH 3 BUOC va TU KIEM TRA. Tra DUNG 1 object JSON (khong markdown):"
             '\n{"trang_thai": "vi_pham|hop_le|chua_xac_dinh",'
             ' "can_cu": {"khoan_id": "<id Khoan me lien quan, rong neu chua_xac_dinh>",'
             ' "trich_dan": "<nguyen van Khoan me, rong neu chua_xac_dinh>"},'

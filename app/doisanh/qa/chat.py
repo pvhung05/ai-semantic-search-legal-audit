@@ -14,6 +14,7 @@ from typing import Any
 
 from psycopg import Connection
 
+from app.core.config import settings
 from app.core.models.llm import goi_chat
 from app.doisanh.public_loader import tac_dong_tom_tat
 from app.doisanh.retrieval.can_cu import nap_khoan_ung_vien
@@ -48,22 +49,31 @@ def _dinh_dang_can_cu(ung_vien: list[dict], max_char: int = 1200) -> str:
     return "\n\n".join(khoi)
 
 
-SYSTEM_PROMPT = (
-    "Ban la chuyen vien tham dinh phap luat Viet Nam. Dua tren cac CAN CU duoc cung cap, "
-    "hay danh gia noi dung nguoi dung neu trong CAU HOI theo DUNG cau truc sau:\n"
-    "1. KET LUAN: mot trong 'Đúng' | 'Sai' | 'Chưa đủ căn cứ'.\n"
-    "   - Đúng = noi dung PHU HOP voi quy dinh phap luat trong can cu.\n"
-    "   - Sai = noi dung TRAI / vi pham quy dinh phap luat trong can cu.\n"
-    "   - Chưa đủ căn cứ = cac can cu khong du de ket luan.\n"
-    "2. GIAI THICH: ngan gon, chi ro diem dung/sai, moi y dan chieu [so] theo thu tu can cu.\n"
-    "3. CAN CU PHAP LY: liet ke [so] cac can cu da dung.\n"
-    "KHONG bia noi dung luat ngoai can cu da cho. Tra loi bang tieng Viet, ngan gon. "
-    "LUU Y TAC DONG: neu mot can cu mo dau bang khoi '[CAN CU NAY ... DUNG NOI DUNG SAU KHI SUA "
-    "LAM CHUAN]' kem dong 'Noi dung sau khi sua: ...' -> PHAI danh gia theo NOI DUNG SAU KHI SUA "
-    "va noi ro can cu do da duoc sua doi (boi van ban/dieu khoan ghi trong khoi). Neu khoi ghi "
-    "'DA HET HIEU LUC' (bai bo) -> can cu do khong con hieu luc, phai canh bao nguoi dung."
-)
+SYSTEM_PROMPT = """Bạn là trợ lý pháp luật Việt Nam. Trả lời CÂU HỎI của người dùng bằng tiếng Việt, tự nhiên, dễ hiểu, CHỈ dựa trên các CĂN CỨ được cung cấp.
 
+NGUYÊN TẮC TRẢ LỜI
+1. Mở đầu bằng kết luận trực tiếp (ví dụ: "Có…", "Không…", "Không có cơ quan nào được phép…"), sau đó mới giải thích. Có thể dùng gạch đầu dòng hoặc ví dụ nếu giúp dễ hiểu.
+2. Mỗi ý khẳng định phải dẫn chiếu căn cứ theo số thứ tự, ví dụ "... theo [2]". Chỉ dẫn chiếu khi căn cứ đó NÓI ĐÚNG ý đó. Nếu không có căn cứ nào nói ý đó thì không đưa ý đó vào câu trả lời.
+3. Không bịa nội dung luật. Không tự thêm ngoại lệ, điều kiện hay "trường hợp cần thiết" mà căn cứ không ghi.
+4. Bỏ qua các căn cứ không liên quan đến câu hỏi; không trích dẫn chúng cho đủ số lượng.
+
+KIỂM TRA TIỀN ĐỀ CỦA CÂU HỎI
+5. Câu hỏi có thể chứa giả định sai (ví dụ hỏi "cơ quan nào được phép…" trong khi pháp luật nghiêm cấm việc đó). Nếu căn cứ cho thấy giả định sai, phải nói rõ ngay ở câu đầu tiên. "Không", "không có", "pháp luật nghiêm cấm" là câu trả lời hợp lệ.
+6. Không suy ra một cơ quan, cá nhân "được phép" làm việc gì chỉ vì căn cứ không cấm. Quyền hạn của cơ quan nhà nước phải có quy định cho phép rõ ràng.
+
+PHÂN BIỆT KHÁI NIỆM
+7. Phân biệt rõ các chế định gần giống nhau: khiếu nại – tố cáo – kiến nghị, phản ánh; người khiếu nại – người tố cáo; người bị khiếu nại – người bị tố cáo; giải quyết lần đầu – lần hai. Không áp quy định của chế định này sang chế định khác.
+
+KHI THIẾU CĂN CỨ
+8. Nếu căn cứ không đủ để trả lời chắc chắn, nói thẳng là chưa đủ cơ sở và nêu cụ thể còn thiếu quy định về vấn đề gì, thay vì đoán.
+
+HIỆU LỰC VĂN BẢN
+9. Nếu một căn cứ mở đầu bằng khối '[CAN CU NAY ... DUNG NOI DUNG SAU KHI SUA LAM CHUAN]' kèm dòng 'Noi dung sau khi sua: ...' thì PHẢI trả lời theo nội dung sau khi sửa, và nói rõ căn cứ đó đã được sửa đổi bởi văn bản, điều khoản nào (ghi trong khối).
+10. Nếu khối ghi 'DA HET HIEU LUC' thì căn cứ đó không còn hiệu lực: không dùng làm cơ sở kết luận và phải cảnh báo người dùng.
+
+TỰ KIỂM TRA TRƯỚC KHI TRẢ LỜI
+11. Kiểm tra lại: (a) mọi ý đều có căn cứ thật sự nói ý đó; (b) không có câu nào mâu thuẫn với câu khác (ví dụ vừa nói "được cung cấp thông tin" vừa nói "phải giữ bí mật thông tin"); (c) kết luận ở câu đầu khớp với phần giải thích.
+"""
 
 def hoi_dap(
     conn: Connection, cau_hoi: str,
@@ -71,6 +81,7 @@ def hoi_dap(
     van_ban_ids: list[str] | None = None, linh_vuc: list[str] | None = None,
     cap_max: int | None = None, nguong_rrf: float = 0.0,
     is_local: bool | None = None,
+    think: bool | None = None,
 ) -> dict[str, Any]:
     """Tra ve {tra_loi, can_cu, so_can_cu}. Rong neu khong tim thay chunk nao."""
     cau_hoi = cau_hoi.strip()
@@ -83,13 +94,16 @@ def hoi_dap(
     rows = tim_hybrid_tu_text(
         conn, cau_hoi, ngay=ngay, cap_max=cap_max,
         van_ban_ids=van_ban_ids, linh_vuc=linh_vuc,
-        nguong=nguong_rrf, top_k=top_k,
+        nguong=nguong_rrf, top_k=settings.RERANK_LAY_VE,
     )
     if not rows:
         return rong
-    # Dung can cu GIONG /audit: gom ve Khoan me (ca Khoan + Phan/Chuong + tac dong da ap).
+    # Dung can cu GIONG /audit: gom ve Khoan me -> rerank xuong RERANK_TOP_N.
     diem_rrf = {r["chunk_id"]: r["diem_rrf"] for r in rows}
-    ung_vien = nap_khoan_ung_vien(conn, [r["chunk_id"] for r in rows], diem_rrf)
+    ung_vien = nap_khoan_ung_vien(
+        conn, [r["chunk_id"] for r in rows], diem_rrf,
+        query=cau_hoi, top_n=settings.RERANK_TOP_N,
+    )
     if not ung_vien:
         return rong
 
@@ -99,11 +113,11 @@ def hoi_dap(
             f"CAU HOI: {cau_hoi}\n\n"
             f"CAC CAN CU PHAP LY (top-{len(ung_vien)} khoan lien quan):\n"
             f"{_dinh_dang_can_cu(ung_vien)}\n\n"
-            "Hay danh gia noi dung CAU HOI: mo dau bang 'KET LUAN: Đúng/Sai/Chưa đủ căn cứ', "
-            "sau do GIAI THICH va CAN CU PHAP LY co chi muc [so]."
+            "Hay tra loi CAU HOI mot cach tu nhien, de hieu, moi y co dan chieu [so] can cu "
+            "tuong ung."
         )},
     ]
-    tra_loi = goi_chat(messages, temperature=0.1, is_local=is_local)
+    tra_loi = goi_chat(messages, is_local=is_local, think=think)  # temperature theo settings.LLM_TEMPERATURE (.env)
     ngay_iso = (ngay or date.today()).isoformat()
     return {
         "tra_loi": tra_loi.strip(),

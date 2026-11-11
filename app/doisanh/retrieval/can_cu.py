@@ -9,6 +9,7 @@ from datetime import date
 
 from app.core.html_text import html_doc_to_text
 from app.doisanh.public_loader import impacts_cho_nodes, khoi_tac_dong
+from app.doisanh.retrieval.rerank import rerank
 
 
 def _loai_rang_buoc(text: str) -> list[str]:
@@ -29,8 +30,14 @@ def _loai_rang_buoc(text: str) -> list[str]:
                             "trong thời hạn", "thời hạn", "chậm nhất", "trước ngày",
                             "không được chậm")):
         kq.append("tran")
-    if any(k in t for k in ("do ", "có thể thỏa thuận", "theo thỏa thuận",
-                            "hai bên thỏa thuận", "tự quyết định", "do các bên")):
+    if any(k in t for k in (
+        "có thể thỏa thuận", "theo thỏa thuận", "hai bên thỏa thuận", "các bên thỏa thuận",
+        "tự thỏa thuận", "tự quyết định", "do các bên", "do hai bên",
+        "do chính phủ", "do thủ tướng", "do bộ trưởng", "do bộ ", "do ủy ban", "do ubnd",
+        "do cơ quan có thẩm quyền", "do người có thẩm quyền", "do thủ trưởng", "do người đứng đầu",
+        "giao chính phủ", "giao bộ trưởng", "giao bộ ", "giao ủy ban", "giao ubnd", "giao thủ trưởng",
+        "giao cơ quan",
+    )):
         kq.append("trao_quyen")
     return kq or ["khong_ro"]
 
@@ -84,34 +91,100 @@ def _phan_chuong(cur, vb_id: str, up: str) -> tuple[str | None, str | None]:
     return nhan("phan", "Phần"), nhan("chuong", "Chương")
 
 
-def nap_khoan_ung_vien(conn, chunk_ids: list[str], diem_rrf: dict[str, float]) -> list[dict]:
-    """Nap can cu ung vien, GOM moi chunk top-k ve don vi KHOAN (hoac DIEU neu khong co Khoan).
+def _noi_khong_lap(doan: list[str | None]) -> str:
+    """Noi cac doan bang xuong dong, bo doan rong hoac da nam trong phan da noi (so theo khoang trang chuan)."""
+    giu: list[str] = []
+    for d in doan:
+        d = (d or "").strip()
+        if d and " ".join(d.split()) not in " ".join(" ".join(giu).split()):
+            giu.append(d)
+    return "\n".join(giu)
 
-    Diem/Khoan khop -> leo len Khoan me qua duong_dan; noi_dung gui LLM = "ten Dieu" +
-    ca Khoan (cau dan + tat ca Diem con). Dieu khong co Khoan -> dung ca Dieu. Khu trung
-    theo don vi; diem_rrf giu ban cao nhat. Moi ung vien kem Phan/Chuong, loai_rang_buoc, tac_dong.
+
+def _gop_anh_em(paths: dict[str, dict]) -> dict[str, dict]:
+    """Gop don vi ANH EM (>=2 con cung cha) len cha, lap den khi on dinh.
+
+    Cha chi duoc gop khi la Khoan ('K') hoac Dieu ('D'): Diem anh em -> Khoan,
+    Khoan anh em -> Dieu (khong leo len Chuong/Muc/Phan). Con LE giu nguyen cap cua no
+    (vd 1 Diem le -> van la Diem). Mutate & tra lai chinh dict do.
+    """
+    def cha(p: str) -> str:
+        return p.rsplit(">", 1)[0] if ">" in p else ""
+
+    def cha_la_khoan_dieu(c: str) -> bool:
+        return c.rsplit(">", 1)[-1][:1] in ("K", "D")
+
+    while True:
+        con_theo_cha: dict[str, list[str]] = {}
+        for p in paths:
+            c = cha(p)
+            if c and cha_la_khoan_dieu(c):
+                con_theo_cha.setdefault(c, []).append(p)
+        muc = next((c for c, cons in con_theo_cha.items() if len(cons) >= 2), None)
+        if muc is None:
+            return paths
+        cons = con_theo_cha[muc]
+        vb = paths[cons[0]]["vb"]
+        rank = min(paths[c]["rank"] for c in cons)
+        rrf = max(paths[c]["rrf"] for c in cons)
+        for c in cons:
+            del paths[c]
+        ex = paths.get(muc)
+        if ex:
+            ex["rank"], ex["rrf"] = min(ex["rank"], rank), max(ex["rrf"], rrf)
+        else:
+            paths[muc] = {"vb": vb, "rank": rank, "rrf": rrf}
+
+
+def nap_khoan_ung_vien(conn, chunk_ids: list[str], diem_rrf: dict[str, float],
+                       query: str | None = None, top_n: int | None = None) -> list[dict]:
+    """Chon can cu ung vien cho LLM. Rerank TRUOC o muc chunk, GOP SAU ve don vi.
+
+    3 buoc:
+    1. Rerank o muc CHUNK (chua gop) theo query -> lay top_n chunk tot nhat. Khong co
+       query/RERANK_URL -> sap theo diem_rrf roi cat top_n.
+    2. Gop chunk da chon ve DON VI theo _gop_anh_em: nhieu Diem cung Khoan -> ca KHOAN;
+       nhieu Khoan cung Dieu -> ca DIEU; mot Diem/Khoan le -> giu nguyen cap do.
+    3. Build noi_dung day du (ten Dieu + than don vi + con chau), Phan/Chuong,
+       loai_rang_buoc, tac_dong. Giu thu tu rerank.
     """
     if not chunk_ids:
         return []
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT c.id, n.van_ban_id, n.duong_dan FROM chunk c "
+            "SELECT c.id, c.text_embed, n.van_ban_id, n.cap, n.duong_dan FROM chunk c "
             "JOIN node n ON n.id = c.node_id WHERE c.id = ANY(%s)",
             (chunk_ids,),
         )
-        leaves = cur.fetchall()
+        chunks = [
+            {"cid": cid, "text": te or "", "vb": vb, "cap": cap, "dd": dd,
+             "rrf": diem_rrf.get(cid, 0.0)}
+            for cid, te, vb, cap, dd in cur.fetchall()
+        ]
+    chunks.sort(key=lambda x: -x["rrf"])
 
-    # gom ve (van_ban, unit_path), giu rrf cao nhat
-    rrf_unit: dict[tuple[str, str], float] = {}
-    for cid, vb_id, duong_dan in leaves:
-        key = (vb_id, _unit_path(duong_dan))
-        rrf = diem_rrf.get(cid, 0.0)
-        if rrf > rrf_unit.get(key, -1.0):
-            rrf_unit[key] = rrf
+    # Buoc 1: rerank muc CHUNK (truoc khi gop). rerank() tu fallback neu khong co RERANK_URL.
+    if query and top_n:
+        chunks = rerank(query, chunks, top_n, khoa_text="text")
+    elif top_n:
+        chunks = chunks[:top_n]
 
+    # Buoc 2: don vi ban dau = duong_dan chunk da chon, roi gop anh em len cha (giu rank/rrf tot nhat)
+    don_vi_info: dict[str, dict] = {}
+    for rank, ch in enumerate(chunks):
+        g = don_vi_info.get(ch["dd"])
+        if g is None:
+            don_vi_info[ch["dd"]] = {"vb": ch["vb"], "rank": rank, "rrf": ch["rrf"]}
+        else:
+            g["rank"], g["rrf"] = min(g["rank"], rank), max(g["rrf"], ch["rrf"])
+    _gop_anh_em(don_vi_info)
+    don_vi = sorted(((d["vb"], p, d["rank"], d["rrf"]) for p, d in don_vi_info.items()),
+                    key=lambda x: x[2])   # (vb, unit_path, rank, rrf) theo thu tu rerank
+
+    # Buoc 3: build noi_dung day du cho tung don vi
     out: list[dict] = []
     with conn.cursor() as cur:
-        for (vb_id, up), rrf in rrf_unit.items():
+        for vb_id, up, rank, rrf in don_vi:
             dp = _dieu_path(up)
             so_dieu = ten_dieu = None
             if dp:
@@ -130,34 +203,47 @@ def nap_khoan_ung_vien(conn, chunk_ids: list[str], diem_rrf: dict[str, float]) -
             if unit is None:
                 continue
             unit_id, unit_cap, unit_stt = unit
-            # ca Khoan = node don vi + toan bo con chau (Diem), theo thu tu
+            so_khoan = unit_stt if unit_cap == "khoan" else None
+            diem = None
+            if unit_cap == "diem":                 # don vi la Diem: lay them so Khoan cha
+                diem = unit_stt
+                kp = _unit_path(up)
+                if kp != up:
+                    cur.execute(
+                        "SELECT so_thu_tu FROM node WHERE van_ban_id=%s AND duong_dan=%s AND cap='khoan'",
+                        (vb_id, kp),
+                    )
+                    if rk := cur.fetchone():
+                        so_khoan = rk[0]
+            # than = don vi + toan bo con chau, theo thu tu
             cur.execute(
                 "SELECT noi_dung FROM node WHERE van_ban_id=%s "
                 "AND (duong_dan=%s OR duong_dan LIKE %s) ORDER BY order_index",
                 (vb_id, up, up + ">%"),
             )
-            than = "\n".join(
-                t for t in (html_doc_to_text(r[0] or "").strip() for r in cur.fetchall()) if t
+            # Node Dieu thuong da chua san toan van cac Khoan con -> bo doan da co de khong lap.
+            noi_dung = _noi_khong_lap(
+                [ten_dieu] + [html_doc_to_text(r[0] or "") for r in cur.fetchall()]
             )
             cur.execute("SELECT so_hieu, ten FROM van_ban WHERE id=%s", (vb_id,))
             vb = cur.fetchone() or (None, None)
-            noi_dung = "\n".join(x for x in (ten_dieu, than) if x)
             out.append({
                 "khoan_id": unit_id,
                 "van_ban_id": vb_id,
                 "so_hieu": vb[0] or "", "ten_van_ban": vb[1] or "",
                 "so_dieu": so_dieu, "tieu_de_dieu": ten_dieu,
-                "so_khoan": unit_stt if unit_cap == "khoan" else None,
-                "diem": None,
+                "so_khoan": so_khoan,
+                "diem": diem,
                 "phan": phan,
                 "chuong": chuong,
                 "noi_dung": noi_dung,
                 "loai_rang_buoc": _loai_rang_buoc(noi_dung),
                 "diem_rrf": rrf,
+                "_rank": rank,
             })
 
     # Tac dong cap dieu khoan: can cu co bi sua doi/thay the/bai bo khong (ke ca mark o Dieu cha).
-    # Khong chi canh bao: dua NOI DUNG SAU KHI SUA len dau can cu de LLM lay lam chuan.
+    # Dua NOI DUNG SAU KHI SUA len dau can cu de LLM lay lam chuan.
     impacts = impacts_cho_nodes(conn, [u["khoan_id"] for u in out])
     ngay_iso = date.today().isoformat()
     for u in out:
@@ -167,5 +253,7 @@ def nap_khoan_ung_vien(conn, chunk_ids: list[str], diem_rrf: dict[str, float]) -
             khoi = khoi_tac_dong(td, ngay_iso)
             if khoi:
                 u["noi_dung"] = khoi + "\n" + u["noi_dung"]  # prepend de khong bi cat khi [:N]
-    out.sort(key=lambda x: -x["diem_rrf"])
+    out.sort(key=lambda x: x["_rank"])   # giu thu tu rerank
+    for u in out:
+        u.pop("_rank", None)
     return out

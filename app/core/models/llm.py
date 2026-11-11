@@ -44,10 +44,12 @@ def goi_chat(
     model: str | None = None,
     extra: dict[str, Any] | None = None,
     is_local: bool | None = None,
+    think: bool | None = None,
 ) -> str:
     """Goi /chat/completions, tra noi dung dong 1.
 
     is_local: None -> dung IS_LOCAL mac dinh; true -> Qwen local; false -> Claude.
+    think: chi model local; None -> theo LLM_DISABLE_THINKING (.env).
     """
     dung_local = settings.IS_LOCAL if is_local is None else is_local
     url, model_mac_dinh, api_key = settings.cau_hinh_llm(is_local)
@@ -71,7 +73,7 @@ def goi_chat(
             "model": model_dung,
             "messages": messages,
             "stream": False,
-            "think": not settings.LLM_DISABLE_THINKING,
+            "think": (not settings.LLM_DISABLE_THINKING) if think is None else think,
             "options": {
                 "temperature": temp,
                 "num_predict": max_tok,
@@ -119,9 +121,10 @@ def goi_json(
     max_tokens: int | None = None,
     retry_khi_loi_parse: bool = True,
     is_local: bool | None = None,
+    think: bool | None = None,
 ) -> Any:
     """Goi LLM, parse JSON tu phan hoi. Retry 1 lan neu loi parse."""
-    raw = goi_chat(messages, temperature=temperature, max_tokens=max_tokens, is_local=is_local)
+    raw = goi_chat(messages, temperature=temperature, max_tokens=max_tokens, is_local=is_local, think=think)
     try:
         return json.loads(_lam_sach_json(raw))
     except json.JSONDecodeError as exc:
@@ -135,7 +138,7 @@ def goi_json(
             ),
         }
         raw2 = goi_chat(messages + [{"role": "assistant", "content": raw}, them],
-                        temperature=temperature, max_tokens=max_tokens, is_local=is_local)
+                        temperature=temperature, max_tokens=max_tokens, is_local=is_local, think=think)
         try:
             return json.loads(_lam_sach_json(raw2))
         except json.JSONDecodeError as exc2:

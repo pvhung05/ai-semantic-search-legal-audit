@@ -52,6 +52,12 @@ class Settings(BaseSettings):
             return self.LOCAL_LLM_URL, self.LOCAL_LLM_MODEL, self.LOCAL_LLM_API_KEY
         return self.GEMINI_LLM_URL, self.GEMINI_LLM_MODEL, self.GEMINI_LLM_API_KEY
 
+    # Rerank cross-encoder (TEI /rerank). Rong -> bo qua rerank, giu thu tu hybrid.
+    RERANK_URL: str = ""
+    RERANK_MODEL: str = ""          # chi de ghi chu; TEI dinh model o server, khong gui kem
+    RERANK_LAY_VE: int = 40         # so ung vien lay ra tu hybrid truoc khi rerank
+    RERANK_TOP_N: int = 5           # so ung vien sau rerank gui len LLM
+
     EMBED_URL: str = "http://localhost:11434/v1"
     EMBED_MODEL: str = "bge-m3"
     EMBED_DIM: int = 1024

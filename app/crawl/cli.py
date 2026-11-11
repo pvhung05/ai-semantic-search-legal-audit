@@ -130,9 +130,15 @@ def cmd_fetch_cay(args: argparse.Namespace) -> None:
         if args.id:
             ids = [args.id]
         else:
+            # Mac dinh: chi fetch van ban CHUA co cay. --all -> fetch lai toan bo.
+            loc = "" if getattr(args, "all", False) else (
+                " AND NOT EXISTS (SELECT 1 FROM vanban.document_cay c"
+                " WHERE c.document_id = q.id_ref)"
+            )
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT id_ref FROM vanban.crawl_queue WHERE trang_thai = 'DONE' ORDER BY id_ref"
+                    f"SELECT q.id_ref FROM vanban.crawl_queue q"
+                    f" WHERE q.trang_thai = 'DONE'{loc} ORDER BY q.id_ref"
                 )
                 ids = [r[0] for r in cur.fetchall()]
         if args.limit:
@@ -168,9 +174,12 @@ def cmd_fetch_tac_dong(args: argparse.Namespace) -> None:
         if args.id:
             ids = [args.id]
         else:
+            # Mac dinh: chi fetch van ban CHUA fetch tac dong. --all -> fetch lai toan bo.
+            loc = "" if getattr(args, "all", False) else " AND da_fetch_tac_dong = false"
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT id_ref FROM vanban.crawl_queue WHERE trang_thai = 'DONE' ORDER BY id_ref"
+                    f"SELECT id_ref FROM vanban.crawl_queue"
+                    f" WHERE trang_thai = 'DONE'{loc} ORDER BY id_ref"
                 )
                 ids = [r[0] for r in cur.fetchall()]
         if args.limit:
@@ -182,6 +191,11 @@ def cmd_fetch_tac_dong(args: argparse.Namespace) -> None:
             try:
                 impacts = doc_api.fetch_diem_tac_dong(fetcher, vb_id)
                 cnt = store.save_provision_impacts(conn, vb_id, impacts)
+                with conn.cursor() as cur:   # danh dau da fetch (ke ca khi 0 tac dong)
+                    cur.execute(
+                        "UPDATE vanban.crawl_queue SET da_fetch_tac_dong = true WHERE id_ref = %s",
+                        (str(vb_id).strip(),),
+                    )
                 conn.commit()
                 tong += 1
                 print(f"[{n}/{len(ids)}] {vb_id:40s} {cnt} canh tac dong")
@@ -262,10 +276,12 @@ def main() -> int:
     fc = sub.add_parser("fetch-cay")
     fc.add_argument("--id", type=str, default=None, help="Fetch cay 1 ID cu the")
     fc.add_argument("--limit", type=int, default=None, help="Gioi han so van ban")
+    fc.add_argument("--all", action="store_true", help="Fetch lai ca van ban da co cay")
 
     ft = sub.add_parser("fetch-tac-dong", help="Fetch tac dong cap dieu khoan -> vanban.provision_impacts")
     ft.add_argument("--id", type=str, default=None, help="Fetch tac dong 1 ID cu the")
     ft.add_argument("--limit", type=int, default=None, help="Gioi han so van ban")
+    ft.add_argument("--all", action="store_true", help="Fetch lai ca van ban da fetch tac dong")
 
     cf = sub.add_parser("crawl-full", help="crawl metadata + fetch-cay trong 1 lenh")
     cf.add_argument("--id", type=str, nargs="+", default=None,

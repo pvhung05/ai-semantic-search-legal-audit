@@ -31,6 +31,7 @@
     background: linear-gradient(90deg, var(--primary), var(--primary-light));
     color: white; padding: 14px 24px; display: flex; align-items: center;
     gap: 18px; box-shadow: 0 2px 8px rgba(30,58,138,0.15);
+    height: 64px; flex-shrink: 0;
   }
   header h1 { margin: 0; font-size: 18px; font-weight: 600; }
   header .sub { font-size: 12px; opacity: 0.85; }
@@ -212,6 +213,23 @@
            box-shadow: 0 4px 12px rgba(30,58,138,0.3); display: none; }
   .toast.err { background: var(--vp); }
   .toast.show { display: block; }
+
+  /* Panel xem toan van HTML o nua trai man hinh */
+  #doc-panel { position: fixed; top: 0; left: 0; width: 50%; height: 100%;
+               background: #fff; box-shadow: 2px 0 16px rgba(0,0,0,0.25); z-index: 90;
+               display: none; flex-direction: column; }
+  #doc-panel.open { display: flex; }
+  #doc-panel .doc-head { display: flex; align-items: center; justify-content: space-between;
+               gap: 18px; padding: 14px 24px; color: #fff; height: 64px; flex-shrink: 0;
+               background: linear-gradient(90deg, var(--primary), var(--primary-light));
+               box-shadow: 0 2px 8px rgba(30,58,138,0.15); }
+  #doc-panel .doc-head .t { font-weight: 600; font-size: 18px; overflow: hidden;
+               text-overflow: ellipsis; white-space: nowrap; }
+  #doc-panel .doc-close { background: rgba(255,255,255,0.2); color: #fff; border: none;
+               border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 15px; }
+  #doc-panel .doc-close:hover { background: rgba(255,255,255,0.35); }
+  #doc-panel iframe { flex: 1; width: 100%; border: none; }
+  @media (max-width: 760px) { #doc-panel { width: 100%; } }
 </style>
 </head>
 <body>
@@ -226,6 +244,11 @@
       <label id="lbl-model public" class="active" onclick="setLocal(false)">model public</label>
       <div class="toggle" id="toggle-llm" onclick="toggleLocal()"></div>
       <label id="lbl-local" onclick="setLocal(true)">model local</label>
+    </div>
+    <div class="llm-switch" id="think-switch" style="display:none"
+         title="Chế độ suy luận (thinking) của model local: kỹ hơn nhưng chậm hơn nhiều">
+      <label id="lbl-think" onclick="toggleThink()">thinking</label>
+      <div class="toggle" id="toggle-think" onclick="toggleThink()"></div>
     </div>
     <button class="btn" onclick="openChat()">💬 Hỏi đáp</button>
     <button class="btn" onclick="openLegalModal()">+ Nạp luật</button>
@@ -353,10 +376,28 @@
   </div>
 </div>
 
+<!-- Panel xem toan van HTML (nua trai) -->
+<div id="doc-panel">
+  <div class="doc-head">
+    <span class="t" id="doc-title">Toàn văn</span>
+    <button class="doc-close" onclick="closeDocPanel()">✕ Đóng</button>
+  </div>
+  <iframe id="doc-frame" sandbox="allow-same-origin"></iframe>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 const API = "";
+function openDocPanel(id, title) {
+  document.getElementById('doc-title').textContent = title || 'Toàn văn';
+  document.getElementById('doc-frame').src = API + '/legal/' + encodeURIComponent(id) + '/html';
+  document.getElementById('doc-panel').classList.add('open');
+}
+function closeDocPanel() {
+  document.getElementById('doc-panel').classList.remove('open');
+  document.getElementById('doc-frame').src = 'about:blank';
+}
 let taiLieuId = null;
 let currentTab = "VI_PHAM";
 let auditResult = null;
@@ -367,10 +408,23 @@ function setLocal(v) {
   document.getElementById('toggle-llm').classList.toggle('local', isLocal);
   document.getElementById('lbl-local').classList.toggle('active', isLocal);
   document.getElementById('lbl-model public').classList.toggle('active', !isLocal);
+  document.getElementById('think-switch').style.display = isLocal ? 'flex' : 'none';
   try { localStorage.setItem('audit_is_local', isLocal ? '1' : '0'); } catch(e){}
 }
 function toggleLocal() { setLocal(!isLocal); }
 try { if (localStorage.getItem('audit_is_local') === '1') setLocal(true); } catch(e){}
+
+let thinkOn = false;   // thinking cua model local (mac dinh tat, giong .env)
+function setThink(v) {
+  thinkOn = !!v;
+  document.getElementById('toggle-think').classList.toggle('local', thinkOn);
+  document.getElementById('lbl-think').classList.toggle('active', thinkOn);
+  try { localStorage.setItem('audit_think', thinkOn ? '1' : '0'); } catch(e){}
+}
+function toggleThink() { setThink(!thinkOn); }
+try { if (localStorage.getItem('audit_think') === '1') setThink(true); } catch(e){}
+// think chi gui khi dung model local; public -> null (server bo qua)
+const thinkParam = () => (isLocal ? thinkOn : null);
 
 function toast(msg, err=false) {
   const t = document.getElementById('toast');
@@ -505,7 +559,7 @@ async function runAudit() {
   try {
     const r = await fetch(API + '/audit/docx', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tai_lieu_id: taiLieuId, top_k: 8, is_local: isLocal })
+      body: JSON.stringify({ tai_lieu_id: taiLieuId, top_k: 8, is_local: isLocal, think: thinkParam() })
     });
     if (!r.ok) throw new Error(await r.text());
     auditResult = await r.json();
@@ -586,6 +640,25 @@ function esc(s) {
   }[c]));
 }
 
+// Markdown rut gon cho cau tra loi LLM: esc truoc, roi **dam**, *nghieng*, `code`, gach dau dong, xuong dong.
+function renderMd(s) {
+  const inline = t => esc(t)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+  const out = [];
+  let li = [];  // gom cac dong gach dau dong lien tiep
+  const xaList = () => { if (li.length) { out.push('<ul>' + li.join('') + '</ul>'); li = []; } };
+  for (const raw of String(s || '').split('\n')) {
+    const m = raw.match(/^\s*[-*]\s+(.*)$/);
+    if (m) { li.push('<li>' + inline(m[1]) + '</li>'); continue; }
+    xaList();
+    if (raw.trim()) out.push('<div>' + inline(raw.replace(/^#{1,6}\s+/, '')) + '</div>');
+  }
+  xaList();
+  return out.join('');
+}
+
 /* ===== Nạp luật modal ===== */
 function openLegalModal() { document.getElementById('legal-modal').classList.add('open'); }
 function closeLegalModal() { document.getElementById('legal-modal').classList.remove('open'); }
@@ -640,12 +713,12 @@ async function sendAsk() {
   try {
     const r = await fetch(API + '/ask', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cau_hoi: q, top_k: 8, is_local: isLocal }),
+      body: JSON.stringify({ cau_hoi: q, top_k: 8, is_local: isLocal, think: thinkParam() }),
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
     loading.remove();
-    chatAppend(`<div class="chat-msg bot">${esc(d.tra_loi || '(không có trả lời)')}</div>`);
+    chatAppend(`<div class="chat-msg bot">${d.tra_loi ? renderMd(d.tra_loi) : '(không có trả lời)'}</div>`);
     const cc = renderCanCu(d.can_cu);
     if (cc) chatAppend(cc);
   } catch (e) {
@@ -694,7 +767,8 @@ async function loadLegalList() {
     if (!r.ok) throw new Error(await r.text());
     const list = await r.json();
     const html = list.map(v => `
-      <div style="padding:10px; border-bottom:1px solid var(--border);">
+      <div onclick="openDocPanel('${esc(v.id)}', '${esc(v.so_hieu)} — ${esc(v.ten)}')"
+           title="Xem toàn văn" style="padding:10px; border-bottom:1px solid var(--border); cursor:pointer;">
         <div style="font-weight:600; color:var(--primary);">${esc(v.so_hieu)} — ${esc(v.ten)}</div>
         <div style="font-size:12px; color:var(--muted); margin-top:2px;">
           id: ${esc(v.id)} • loại: ${esc(v.loai)} • cấp ${v.cap} • ${v.so_khoan||0} Khoản
