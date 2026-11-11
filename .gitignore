@@ -34,3 +34,8 @@ postman/
 /cay*.json
 /toanvan_*.json
 /*_[0-9]*.json
+
+# docker (chứa cấu hình/bí mật cục bộ)
+docker-compose.yml
+Dockerfile.crawl
+Dockerfile.doisanh
