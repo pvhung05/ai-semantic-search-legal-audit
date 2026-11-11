@@ -39,3 +39,8 @@ postman/
 docker-compose.yml
 Dockerfile.crawl
 Dockerfile.doisanh
+
+# Tài liệu nội bộ / công cụ cục bộ (không công khai)
+CLAUDE.md
+PLAN.md
+audit_legal.postman_collection.json
