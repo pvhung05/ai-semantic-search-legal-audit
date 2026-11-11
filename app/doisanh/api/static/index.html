@@ -57,6 +57,11 @@
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
   header .btn { background: rgba(255,255,255,0.15); color: white; border-color: rgba(255,255,255,0.3); }
   header .btn:hover { background: rgba(255,255,255,0.25); }
+  header .btn.nav-active { background: white; color: var(--primary); font-weight: 600; }
+  .page.hidden { display: none; }
+  .chat-input textarea { flex: 1; min-height: 44px; max-height: 120px; resize: vertical;
+                         font-family: inherit; font-size: 13px; padding: 8px;
+                         border: 1px solid var(--border); border-radius: 6px; }
 
   main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px;
          height: calc(100vh - 60px); overflow: hidden; }
@@ -184,7 +189,9 @@
   .modal footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 
   /* Chat Hoi dap (/ask) */
-  .modal.chat { max-width: 680px; height: 80vh; display: flex; flex-direction: column; }
+  .modal.chat { width: 34vw; min-width: 340px; max-width: 95vw; height: 70vh;
+                display: flex; flex-direction: column; }
+  @media (max-width: 760px) { .modal.chat { width: 95vw; } }
   .modal.chat h3 { display: flex; justify-content: space-between; align-items: center; }
   .chat-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;
               padding: 6px 2px; margin: 12px 0; }
@@ -214,22 +221,8 @@
   .toast.err { background: var(--vp); }
   .toast.show { display: block; }
 
-  /* Panel xem toan van HTML o nua trai man hinh */
-  #doc-panel { position: fixed; top: 0; left: 0; width: 50%; height: 100%;
-               background: #fff; box-shadow: 2px 0 16px rgba(0,0,0,0.25); z-index: 90;
-               display: none; flex-direction: column; }
-  #doc-panel.open { display: flex; }
-  #doc-panel .doc-head { display: flex; align-items: center; justify-content: space-between;
-               gap: 18px; padding: 14px 24px; color: #fff; height: 64px; flex-shrink: 0;
-               background: linear-gradient(90deg, var(--primary), var(--primary-light));
-               box-shadow: 0 2px 8px rgba(30,58,138,0.15); }
-  #doc-panel .doc-head .t { font-weight: 600; font-size: 18px; overflow: hidden;
-               text-overflow: ellipsis; white-space: nowrap; }
-  #doc-panel .doc-close { background: rgba(255,255,255,0.2); color: #fff; border: none;
-               border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 15px; }
-  #doc-panel .doc-close:hover { background: rgba(255,255,255,0.35); }
-  #doc-panel iframe { flex: 1; width: 100%; border: none; }
-  @media (max-width: 760px) { #doc-panel { width: 100%; } }
+  /* Khung xem noi dung van ban o page Kho luat */
+  #kholuat-frame { width: 100%; height: 100%; border: none; }
 </style>
 </head>
 <body>
@@ -250,17 +243,18 @@
       <label id="lbl-think" onclick="toggleThink()">thinking</label>
       <div class="toggle" id="toggle-think" onclick="toggleThink()"></div>
     </div>
+    <button class="btn nav-active" id="nav-audit" onclick="showPage('audit')">Đối sánh</button>
+    <button class="btn" id="nav-kholuat" onclick="showPage('kholuat')">Kho luật</button>
     <button class="btn" onclick="openChat()">💬 Hỏi đáp</button>
     <button class="btn" onclick="openLegalModal()">+ Nạp luật</button>
-    <button class="btn" onclick="loadLegalList()">Kho luật</button>
   </nav>
 </header>
 
-<main>
+<main id="page-audit" class="page">
   <!-- LEFT: dự thảo -->
   <section class="pane">
     <div class="pane-head">
-      <span>📄 Văn bản dự thảo</span>
+      <span>Văn bản dự thảo</span>
       <span id="draft-name" style="font-weight:400; font-size:12px;"></span>
     </div>
     <div class="pane-body">
@@ -290,7 +284,7 @@
   <!-- RIGHT: kết quả -->
   <section class="pane">
     <div class="pane-head">
-      <span>🔍 Kết quả đối chiếu</span>
+      <span>Kết quả đối chiếu</span>
       <span style="display:flex; align-items:center; gap:10px;">
         <a class="btn" id="btn-tai-docx" style="display:none; text-decoration:none;"
            href="#" download>⬇ Tải bản track-change</a>
@@ -304,6 +298,72 @@
     </div>
   </section>
 </main>
+
+<!-- PAGE: Kho luật -->
+<main id="page-kholuat" class="page hidden">
+  <!-- LEFT: nội dung văn bản -->
+  <section class="pane">
+    <div class="pane-head">
+      <span style="flex-shrink:0;">Nội dung</span>
+      <span id="kholuat-doc-name"
+            style="font-weight:400; font-size:12px; flex:1; min-width:0; text-align:right;
+                   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
+    </div>
+    <div class="pane-body" style="padding:0;">
+      <div class="draft-placeholder" id="kholuat-ph" style="padding:40px 20px;">
+        Chọn một văn bản ở cột phải để xem nội dung.
+      </div>
+      <iframe id="kholuat-frame" sandbox="allow-same-origin" style="display:none;"></iframe>
+    </div>
+  </section>
+
+  <!-- RIGHT: danh sách văn bản pháp luật -->
+  <section class="pane">
+    <div class="pane-head">
+      <span>Văn bản pháp luật</span>
+      <span id="kholuat-status" style="font-weight:400; font-size:12px;"></span>
+    </div>
+    <div style="padding:10px 12px; border-bottom:1px solid var(--border); display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+      <input id="kholuat-search" type="search" placeholder="Tìm tên / số hiệu…"
+             oninput="onLegalSearch(this.value)"
+             style="flex:2 1 150px; min-width:120px; padding:7px; border:1px solid var(--border); border-radius:6px; font-size:13px; font-family:inherit;" />
+      <select id="kholuat-loai" onchange="onLegalFilter()"
+              style="flex:1 1 120px; min-width:110px; padding:7px; border:1px solid var(--border); border-radius:6px; font-size:13px; font-family:inherit;">
+        <option value="">Tất cả loại</option>
+      </select>
+      <input id="kholuat-tu" type="date" onchange="onLegalFilter()" title="Hiệu lực từ ngày"
+             style="flex:1 1 130px; min-width:120px; padding:6px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit;" />
+      <input id="kholuat-den" type="date" onchange="onLegalFilter()" title="Hiệu lực đến ngày"
+             style="flex:1 1 130px; min-width:120px; padding:6px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit;" />
+      <button class="btn" onclick="clearLegalDates()" title="Xoá lọc ngày" style="padding:6px 9px;">✕</button>
+    </div>
+    <div class="pane-body" id="kholuat-list">
+      <div class="draft-placeholder">Đang tải danh sách…</div>
+    </div>
+    <div class="toolbar" id="kholuat-pager" style="display:none;">
+      <button class="btn" onclick="legalGoPage(-1)">← Trước</button>
+      <span class="status" id="kholuat-pageinfo"></span>
+      <button class="btn" onclick="legalGoPage(1)">Sau →</button>
+    </div>
+  </section>
+</main>
+
+<!-- Popup Hỏi đáp (làm mờ nền, ~1/3 màn hình) -->
+<div class="modal-mask" id="chat-modal">
+  <div class="modal chat">
+    <h3>💬 Hỏi đáp kho pháp luật
+      <button class="btn" onclick="closeChat()" style="padding:4px 10px;">✕</button>
+    </h3>
+    <div class="chat-log" id="chat-log">
+      <div class="chat-msg bot">Hỏi tôi về nội dung trong kho pháp luật. Câu trả lời sẽ kèm căn cứ [số].</div>
+    </div>
+    <div class="chat-input">
+      <textarea id="chat-input" placeholder="Nhập câu hỏi… (Enter để gửi, Shift+Enter xuống dòng)"
+                onkeydown="chatKey(event)"></textarea>
+      <button class="btn primary" id="chat-send" onclick="sendAsk()">Gửi</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal nạp luật -->
 <div class="modal-mask" id="legal-modal">
@@ -359,45 +419,47 @@
   </div>
 </div>
 
-<!-- Modal Hoi dap (/ask) -->
-<div class="modal-mask" id="chat-modal">
-  <div class="modal chat">
-    <h3>💬 Hỏi đáp kho pháp luật
-      <button class="btn" onclick="closeChat()" style="padding:4px 10px;">✕</button>
-    </h3>
-    <div class="chat-log" id="chat-log">
-      <div class="chat-msg bot">Hỏi tôi về nội dung trong kho pháp luật. Câu trả lời sẽ kèm căn cứ [số].</div>
-    </div>
-    <div class="chat-input">
-      <textarea id="chat-input" placeholder="Nhập câu hỏi… (Enter để gửi, Shift+Enter xuống dòng)"
-                onkeydown="chatKey(event)"></textarea>
-      <button class="btn primary" id="chat-send" onclick="sendAsk()">Gửi</button>
-    </div>
-  </div>
-</div>
-
-<!-- Panel xem toan van HTML (nua trai) -->
-<div id="doc-panel">
-  <div class="doc-head">
-    <span class="t" id="doc-title">Toàn văn</span>
-    <button class="doc-close" onclick="closeDocPanel()">✕ Đóng</button>
-  </div>
-  <iframe id="doc-frame" sandbox="allow-same-origin"></iframe>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <script>
 const API = "";
-function openDocPanel(id, title) {
-  document.getElementById('doc-title').textContent = title || 'Toàn văn';
-  document.getElementById('doc-frame').src = API + '/legal/' + encodeURIComponent(id) + '/html';
-  document.getElementById('doc-panel').classList.add('open');
+
+// Dieu huong trang bang URL that: /audit (mac dinh), /legal. Hoi dap la popup.
+const PAGES = ['audit', 'kholuat'];
+const PATH_OF = { audit: '/audit', kholuat: '/legal' };
+const PAGE_OF = { '/': 'audit', '/audit': 'audit', '/legal': 'kholuat' };
+
+function showPage(p, push = true) {
+  if (!PATH_OF[p]) p = 'audit';
+  for (const x of PAGES) {
+    document.getElementById('page-' + x).classList.toggle('hidden', x !== p);
+    document.getElementById('nav-' + x).classList.toggle('nav-active', x === p);
+  }
+  if (push && location.pathname !== PATH_OF[p]) history.pushState({ p }, '', PATH_OF[p]);
+  if (p === 'kholuat') { loadLegalLoai(); loadLegalList(); }
 }
-function closeDocPanel() {
-  document.getElementById('doc-panel').classList.remove('open');
-  document.getElementById('doc-frame').src = 'about:blank';
+function routeFromPath() { showPage(PAGE_OF[location.pathname] || 'audit', false); }
+window.addEventListener('popstate', routeFromPath);
+window.addEventListener('DOMContentLoaded', routeFromPath);
+
+// Popup Hoi dap
+function openChat() {
+  document.getElementById('chat-modal').classList.add('open');
+  const i = document.getElementById('chat-input'); if (i) i.focus();
 }
+function closeChat() { document.getElementById('chat-modal').classList.remove('open'); }
+
+// Xem noi dung 1 van ban o cot trai page Kho luat
+function openLegalContent(id, title) {
+  const fr = document.getElementById('kholuat-frame');
+  fr.src = API + '/legal/' + encodeURIComponent(id) + '/html';
+  fr.style.display = 'block';
+  document.getElementById('kholuat-ph').style.display = 'none';
+  const nameEl = document.getElementById('kholuat-doc-name');
+  nameEl.textContent = title || '';
+  nameEl.title = title || '';
+}
+
 let taiLieuId = null;
 let currentTab = "VI_PHAM";
 let auditResult = null;
@@ -664,11 +726,6 @@ function openLegalModal() { document.getElementById('legal-modal').classList.add
 function closeLegalModal() { document.getElementById('legal-modal').classList.remove('open'); }
 
 // ---- Hoi dap (/ask) ----
-function openChat() {
-  document.getElementById('chat-modal').classList.add('open');
-  document.getElementById('chat-input').focus();
-}
-function closeChat() { document.getElementById('chat-modal').classList.remove('open'); }
 function chatKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAsk(); } }
 
 function chatAppend(html) {
@@ -761,25 +818,102 @@ async function uploadLegal() {
   }
 }
 
+let legalPage = 0, legalQuery = '', legalTotal = 0, legalTimer = null;
+const LEGAL_PER_PAGE = 20;
+
+let legalFiltering = false;
+
+// Tai 1 trang tu server (LIMIT/OFFSET + search q + loc ngay) -> khong keo het ve client
 async function loadLegalList() {
+  const listEl = document.getElementById('kholuat-list');
+  listEl.innerHTML = '<div class="draft-placeholder">Đang tải…</div>';
+  const tu = document.getElementById('kholuat-tu').value;
+  const den = document.getElementById('kholuat-den').value;
+  const loai = document.getElementById('kholuat-loai').value;
+  legalFiltering = !!(legalQuery || tu || den || loai);
   try {
-    const r = await fetch(API + '/legal?con_hieu_luc=false');
+    const p = new URLSearchParams({
+      con_hieu_luc: 'false', limit: LEGAL_PER_PAGE, offset: legalPage * LEGAL_PER_PAGE,
+    });
+    if (legalQuery) p.set('q', legalQuery);
+    if (loai) p.set('loai', loai);
+    if (tu) p.set('tu_ngay', tu);
+    if (den) p.set('den_ngay', den);
+    const r = await fetch(API + '/api/legal?' + p.toString());
     if (!r.ok) throw new Error(await r.text());
-    const list = await r.json();
-    const html = list.map(v => `
-      <div onclick="openDocPanel('${esc(v.id)}', '${esc(v.so_hieu)} — ${esc(v.ten)}')"
-           title="Xem toàn văn" style="padding:10px; border-bottom:1px solid var(--border); cursor:pointer;">
-        <div style="font-weight:600; color:var(--primary);">${esc(v.so_hieu)} — ${esc(v.ten)}</div>
-        <div style="font-size:12px; color:var(--muted); margin-top:2px;">
-          id: ${esc(v.id)} • loại: ${esc(v.loai)} • cấp ${v.cap} • ${v.so_khoan||0} Khoản
-          ${v.ngay_het_hieu_luc ? ' • <span style="color:var(--vp)">hết hiệu lực</span>' : ''}
-        </div>
-      </div>`).join('');
-    document.getElementById('audit-view').innerHTML =
-      `<h3 style="margin-top:0; color:var(--primary);">Kho pháp luật (${list.length} văn bản)</h3>${html}`;
-    document.getElementById('audit-status').textContent = `${list.length} văn bản`;
+    const d = await r.json();
+    legalTotal = d.total || 0;
+    renderLegalList(d.items || []);
   } catch (e) {
+    listEl.innerHTML = `<div style="color:var(--vp); padding:20px;">Lỗi: ${esc(e.message)}</div>`;
     toast('Lỗi tải danh sách: ' + e.message, true);
+  }
+}
+
+// Search: debounce 300ms de khong goi server moi phim
+function onLegalSearch(q) {
+  legalQuery = q.trim();
+  legalPage = 0;
+  clearTimeout(legalTimer);
+  legalTimer = setTimeout(loadLegalList, 300);
+}
+
+// Doi loai / ngay -> ve trang 0, tai lai ngay
+function onLegalFilter() { legalPage = 0; loadLegalList(); }
+
+// Nap danh sach loai vao select (1 lan)
+let legalLoaiLoaded = false;
+async function loadLegalLoai() {
+  if (legalLoaiLoaded) return;
+  try {
+    const r = await fetch(API + '/api/legal/loai');
+    if (!r.ok) return;
+    const sel = document.getElementById('kholuat-loai');
+    for (const l of await r.json()) {
+      const o = document.createElement('option');
+      o.value = o.textContent = l;
+      sel.appendChild(o);
+    }
+    legalLoaiLoaded = true;
+  } catch (e) { /* bo qua, van loc duoc khi khong co loai */ }
+}
+
+function clearLegalDates() {
+  document.getElementById('kholuat-tu').value = '';
+  document.getElementById('kholuat-den').value = '';
+  onLegalFilter();
+}
+
+function legalGoPage(d) {
+  const maxPage = Math.max(0, Math.ceil(legalTotal / LEGAL_PER_PAGE) - 1);
+  const np = Math.min(maxPage, Math.max(0, legalPage + d));
+  if (np === legalPage) return;
+  legalPage = np;
+  loadLegalList();
+}
+
+function renderLegalList(items) {
+  const listEl = document.getElementById('kholuat-list');
+  listEl.innerHTML = items.map(v => `
+    <div onclick="openLegalContent('${esc(v.id)}', '${esc(v.so_hieu)} — ${esc(v.ten)}')"
+         title="Xem nội dung" style="padding:10px; border-bottom:1px solid var(--border); cursor:pointer;">
+      <div style="font-weight:600; color:var(--primary);">${esc(v.so_hieu)} — ${esc(v.ten)}</div>
+      <div style="font-size:12px; color:var(--muted); margin-top:2px;">
+        id: ${esc(v.id)} • loại: ${esc(v.loai)} • ${v.so_dieu||0} Điều
+        ${v.ngay_het_hieu_luc ? ' • <span style="color:var(--vp)">hết hiệu lực</span>' : ''}
+      </div>
+    </div>`).join('')
+    || `<div class="draft-placeholder">${legalFiltering ? 'Không có văn bản phù hợp.' : 'Kho luật trống.'}</div>`;
+  document.getElementById('kholuat-status').textContent =
+    `${legalTotal} văn bản${legalFiltering ? ' (lọc)' : ''}`;
+  listEl.scrollTop = 0;
+  const maxPage = Math.max(0, Math.ceil(legalTotal / LEGAL_PER_PAGE) - 1);
+  const pager = document.getElementById('kholuat-pager');
+  if (legalTotal > LEGAL_PER_PAGE) {
+    pager.style.display = 'flex';
+    document.getElementById('kholuat-pageinfo').textContent = `Trang ${legalPage + 1}/${maxPage + 1}`;
+  } else {
+    pager.style.display = 'none';
   }
 }
 </script>

@@ -56,30 +56,64 @@ def ask(req: AskRequest) -> dict:
 # ============================================================
 # 2a) /legal - danh sach van ban trong kho (co the dung lam van_ban_me_ids)
 # ============================================================
-@router.get("/legal")
-def danh_sach_legal(con_hieu_luc: bool = True) -> list[dict]:
-    """Tra ve danh sach VB trong kho de nguoi dung chon van_ban_me_ids cho /audit."""
-    ngay = date.today()
-    dem_dieu = ("(SELECT COUNT(*) FROM node n WHERE n.van_ban_id=v.id AND n.cap='dieu') AS so_dieu")
+@router.get("/api/legal/loai")
+def danh_sach_loai() -> list[str]:
+    """Danh sach loai van ban co thuc trong kho (de do vao filter)."""
     with ket_noi() as conn, conn.cursor() as cur:
-        if con_hieu_luc:
-            cur.execute(
-                f"""SELECT v.id, v.so_hieu, v.ten, v.loai,
-                           v.ngay_hieu_luc, v.ngay_het_hieu_luc, {dem_dieu}
-                    FROM van_ban v
-                    WHERE (v.ngay_het_hieu_luc IS NULL OR v.ngay_het_hieu_luc > %s)
-                      AND (v.ngay_hieu_luc IS NULL OR v.ngay_hieu_luc <= %s)
-                    ORDER BY v.so_hieu""",
-                (ngay, ngay),
-            )
-        else:
-            cur.execute(
-                f"""SELECT v.id, v.so_hieu, v.ten, v.loai,
-                           v.ngay_hieu_luc, v.ngay_het_hieu_luc, {dem_dieu}
-                    FROM van_ban v ORDER BY v.so_hieu""",
-            )
+        cur.execute("SELECT DISTINCT loai FROM van_ban WHERE loai IS NOT NULL ORDER BY loai")
+        return [r[0] for r in cur.fetchall()]
+
+
+@router.get("/api/legal")
+def danh_sach_legal(
+    con_hieu_luc: bool = True,
+    q: str | None = None,
+    loai: str | None = None,
+    tu_ngay: date | None = None,
+    den_ngay: date | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> dict:
+    """Danh sach VB trong kho, phan trang server-side (limit/offset) + tim theo ten/so_hieu (q).
+
+    Tra ve {"total": tong_so, "items": [...]} de client dung cho phan trang.
+    """
+    ngay = date.today()
+    dem_dieu = "(SELECT COUNT(*) FROM node n WHERE n.van_ban_id=v.id AND n.cap='dieu') AS so_dieu"
+    limit = max(1, min(limit, 100))
+    offset = max(0, offset)
+    dk: list[str] = []
+    params: list = []
+    if con_hieu_luc:
+        dk.append("(v.ngay_het_hieu_luc IS NULL OR v.ngay_het_hieu_luc > %s)")
+        dk.append("(v.ngay_hieu_luc IS NULL OR v.ngay_hieu_luc <= %s)")
+        params += [ngay, ngay]
+    if q:
+        dk.append("(v.ten ILIKE %s OR v.so_hieu ILIKE %s)")
+        params += [f"%{q}%", f"%{q}%"]
+    if loai:
+        dk.append("v.loai = %s")
+        params.append(loai)
+    if tu_ngay:
+        dk.append("v.ngay_hieu_luc >= %s")
+        params.append(tu_ngay)
+    if den_ngay:
+        dk.append("v.ngay_hieu_luc <= %s")
+        params.append(den_ngay)
+    where = ("WHERE " + " AND ".join(dk)) if dk else ""
+    with ket_noi() as conn, conn.cursor() as cur:
+        cur.execute(f"SELECT COUNT(*) FROM van_ban v {where}", params)
+        total = cur.fetchone()[0]
+        cur.execute(
+            f"""SELECT v.id, v.so_hieu, v.ten, v.loai,
+                       v.ngay_hieu_luc, v.ngay_het_hieu_luc, {dem_dieu}
+                FROM van_ban v {where}
+                ORDER BY v.so_hieu LIMIT %s OFFSET %s""",
+            params + [limit, offset],
+        )
         cols = [c.name for c in cur.description]
-        return [dict(zip(cols, r)) for r in cur.fetchall()]
+        items = [dict(zip(cols, r)) for r in cur.fetchall()]
+    return {"total": total, "items": items}
 
 
 # ============================================================

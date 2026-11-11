@@ -25,7 +25,10 @@ if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
+# Cac path la trang SPA -> deu tra ve index.html (routing phia client doc location.pathname)
 @app.get("/", response_class=HTMLResponse)
+@app.get("/audit", response_class=HTMLResponse)
+@app.get("/legal", response_class=HTMLResponse)
 def home() -> str:
     index = STATIC_DIR / "index.html"
     if index.exists():
