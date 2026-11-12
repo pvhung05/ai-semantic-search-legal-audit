@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     RERANK_URL: str = ""
     RERANK_MODEL: str = ""          # chi de ghi chu; TEI dinh model o server, khong gui kem
     RERANK_LAY_VE: int = 40         # so ung vien lay ra tu hybrid truoc khi rerank
-    RERANK_TOP_N: int = 5           # so ung vien sau rerank gui len LLM
+    RERANK_TOP_N: int = 10          # so ung vien sau rerank gui len LLM (10: du can cu de suy luan vi pham thu hep/loai bo)
 
     # So luot hoi-dap gan nhat /ask ghi nho (0 = tat, khong nho). Chi nho VAN BAN hoi-dap,
     # KHONG kem khoi can cu cu -> tranh phinh context.

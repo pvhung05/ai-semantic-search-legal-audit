@@ -88,6 +88,7 @@ SO SÁNH SỐ LIỆU THEO 'loai_rang_buoc' của Khoản mẹ (san/tran/co_dinh/
 TIÊU CHÍ vi_pham KHÁC
 - LOẠI TRỪ đối tượng luật bảo vệ ("chỉ", "duy nhất", "trừ" làm mất quyền của đối tượng); THÊM đối tượng/điều kiện luật đã loại trừ.
 - THÊM TRƯỜNG HỢP VÀO DANH SÁCH ĐÓNG: căn cứ liệt kê các trường hợp được từ chối, hạn chế quyền, xử lý, thu hồi… ("được thực hiện trong các trường hợp sau", "chỉ được … khi") mà dự thảo đặt thêm trường hợp KHÔNG có trong danh sách (vd "ngoài các trường hợp theo quy định, … được từ chối …") -> vi_pham, DÙ không căn cứ nào nhắc đến trường hợp mới đó. Đây KHÔNG phải "chưa có căn cứ": chính danh sách đóng là căn cứ; 'trich_dan' = câu mở đầu danh sách. 'de_xuat_sua' = bỏ trường hợp tự thêm.
+- SUY LUẬN (KHÔNG cần câu cấm/câu trái nguyên văn): dự thảo không phải lúc nào cũng ghi rõ chỗ sai. Nếu dự thảo THU HẸP / LOẠI BỎ / BẮT BUỘC trái với phạm vi hoặc tinh thần mà căn cứ xác lập — kể cả khi căn cứ chỉ quy định chung, nguyên tắc, hoặc chỉ nói MỘT PHẦN — thì được kết luận vi_pham BẰNG LẬP LUẬN. Ví dụ: luật cho NHIỀU hình thức/chủ thể/lựa chọn (hoặc không giới hạn) mà dự thảo chỉ cho DUY NHẤT một và loại các phần còn lại. MỘT căn cứ chỉ cần NHẮC TỚI/ÁP DỤNG một hình thức–chủ thể–lựa chọn (KỂ CẢ trong ngữ cảnh trình tự/thủ tục, vd căn cứ ghi "đơn được tiếp nhận trực tiếp hoặc qua dịch vụ bưu chính") ĐÃ ĐỦ chứng tỏ luật CÔNG NHẬN cái đó — nếu dự thảo loại bỏ/chỉ cho một thì vi_pham, KHÔNG được gạt căn cứ đó là "chỉ nói thủ tục, khác vấn đề"; dự thảo biến quyền/tùy chọn của luật thành nghĩa vụ bắt buộc; dự thảo đặt điều kiện chặn quyền mà luật trao. Khi đó: 'can_cu.khoan_id' trỏ Khoan LIÊN QUAN NHẤT (id THẬT trong ứng viên, TUYỆT ĐỐI không bịa), 'trich_dan' = nguyên văn Khoan đó, 'giai_thich' nêu RÕ LẬP LUẬN vì sao mâu thuẫn. Chỉ cần có căn cứ LIÊN QUAN + lập luận chặt; không bắt buộc căn cứ phải chứa đúng câu bị trái.
 - TRÍCH DẪN SAI nội dung luật đặt trong ngoặc kép.
 - VƯỢT THẨM QUYỀN: văn bản cấp dưới bãi bỏ/sửa đổi Khoản/Điều của luật cấp trên.
 - MÂU THUẪN TRỰC TIẾP (vd luật "có quyền"/tùy chọn, dự thảo "bắt buộc"); đặt điều kiện NGƯỢC với luật.
@@ -108,7 +109,7 @@ KHI vi_pham - SỬA TỐI THIỂU: 'de_xuat_sua' là chuỗi thay thế trực t
 
 TỰ KIỂM TRA TRƯỚC KHI TRẢ JSON
 (a) hop_le: 'can_cu.trich_dan' có THẬT SỰ nói ý chính của đoạn không? Nếu không -> chua_xac_dinh.
-(b) vi_pham: có trích được nguyên văn câu căn cứ bị trái không (trừ ngoại lệ hành vi nhạy cảm)? Nếu không -> chua_xac_dinh.
+(b) vi_pham: phải có căn cứ LIÊN QUAN (khoan_id THẬT trong ứng viên) + lập luận chặt. Nếu trích được nguyên văn câu bị trái thì tốt nhất; nếu là lỗi THU HẸP/LOẠI BỎ/MÂU THUẪN NGẦM (mục SUY LUẬN) thì chỉ cần căn cứ liên quan + lập luận, KHÔNG bắt buộc câu nguyên văn. CHỈ hạ về chua_xac_dinh khi KHÔNG có căn cứ liên quan nào hoặc chỉ suy đoán cảm tính không dựa trên căn cứ.
 (c) chua_xac_dinh: 'giai_thich' nêu cụ thể còn thiếu quy định về vấn đề gì.
 (d) 'giai_thich' khớp với 'trang_thai', không có câu tự mâu thuẫn.
 (e) vi_pham: nếu muốn "sửa" phải đổi chủ thể/đơn vị của dự thảo sang chủ thể thuộc hệ thống cơ quan khác, hoặc chép danh sách của căn cứ thay cho danh sách của dự thảo, thì đó KHÔNG phải vi phạm -> xem lại, thường là hop_le (cụ thể hóa) hoặc chua_xac_dinh.
@@ -180,6 +181,12 @@ def prompt_tier2_khoan(
         " gom ho ten, dia chi cua nguoi to cao'; KHONG Khoan me nao cho phep cong khai danh tinh nguoi"
         " to cao -> vi_pham (tiet lo thong tin ca nhan cua nguoi duoc bao ve, khong co can cu cho phep)."
         " de_xuat_sua: bo 'ho ten, dia chi cua nguoi to cao' khoi pham vi duoc xem."
+        "\n[vi_pham - loai bo hinh thuc luat cong nhan] Can cu (du la dieu ve trinh tu/thu tuc) co cum"
+        " 'don duoc tiep nhan truc tiep hoac qua dich vu buu chinh' -> luat CONG NHAN 2 hinh thuc do;"
+        " du thao 'viec tiep nhan don CHI thuc hien truc tuyen; don buu chinh/truc tiep khong duoc cap"
+        " ma ho so' -> vi_pham (loai bo hinh thuc luat cong nhan). can_cu = Khoan co neu hinh thuc do;"
+        " de_xuat_sua = cho phep tiep nhan lai don gui truc tiep/qua buu chinh. KHONG tra chua_xac_dinh"
+        " chi vi can cu nam trong dieu ve 'phan loai/thu tuc'."
     )
     return [
         {"role": "system", "content": TIER2_KHOAN_HE_THONG + vi_du},
@@ -191,7 +198,10 @@ def prompt_tier2_khoan(
             + "Doan du thao can tham dinh:\n" + str(doan_du_thao) + "\n\n"
             "Cac Khoan me ung vien (semantic search, co ngu canh truoc/sau neu co):\n"
             + str(khoan_ung_vien) + "\n\n"
-            "Lam theo QUY TRINH 3 BUOC va TU KIEM TRA. Tra DUNG 1 object JSON (khong markdown):"
+            "Lam theo QUY TRINH 3 BUOC va TU KIEM TRA. MOT doan co the co NHIEU loi DOC LAP"
+            " (vd vua thu hep hinh thuc, vua dat nghia vu trai luat): ghi loi CHINH (nghiem trong nhat)"
+            " o cac truong duoi, cac loi con lai cho vao 'cac_loi_them' (mang; [] neu chi 1 loi), moi"
+            " loi 1 phan tu rieng snippet/can cu/de xuat. Tra DUNG 1 object JSON (khong markdown):"
             '\n{"trang_thai": "vi_pham|hop_le|chua_xac_dinh",'
             ' "can_cu": {"khoan_id": "<id Khoan me lien quan, rong neu chua_xac_dinh>",'
             ' "trich_dan": "<nguyen van Khoan me, rong neu chua_xac_dinh>"},'
@@ -205,6 +215,9 @@ def prompt_tier2_khoan(
             ' viet dang huong dan/menh lenh nhu \'Sua X thanh Y\', \'nen sua...\', \'can thay...\';'
             ' chi ghi dung van ban sau khi sua.'
             ' Vd noi_dung_du_thao=\'tu 13 den 17 nguoi\' -> de_xuat_sua=\'tu 23 den 27 nguoi\'>",'
+            ' "cac_loi_them": [{"khoan_id": "<id that trong ung vien>", "trich_dan": "<nguyen van khoan>",'
+            ' "noi_dung_du_thao": "<phan sai KHAC voi loi chinh>", "giai_thich": "<ly do>",'
+            ' "de_xuat_sua": "<ban da sua cho phan nay>"}],'
             ' "tin_cay": 0.0}'
         )},
     ]

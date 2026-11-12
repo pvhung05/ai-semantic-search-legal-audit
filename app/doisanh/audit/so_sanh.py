@@ -89,21 +89,15 @@ def chay_tier2(don_vi_list: list, emb_by_id: dict, *, trich_yeu: str, ngay: date
     don_vi_can_xet = [dv for dv in don_vi_list if dv.cap in {"khoan", "diem", "doan"}]
 
     def _xu_ly(dv) -> tuple[Any, list[dict], dict]:
-        text = chunk_embed_text(dv)
-        emb = emb_by_id.get(dv.id)
+        # Truy van bang NOI DUNG thuan (embed tuoi), KHONG ghep tieu_de cha: tieu de keo
+        # retrieval lech domain (ho so/thue/ngan hang) -> kem recall. Do thuc te: noi_dung
+        # thuan lay duoc nhieu can cu dung linh vuc hon han. (Bo dung lai embedding da luu.)
+        text = dv.noi_dung
         with ket_noi() as c:
-            # Lay RERANK_LAY_VE chunk (co embedding da luu luc upload -> dung lai;
-            # nguoc lai embed tu text), gom ve Khoan me roi rerank xuong RERANK_TOP_N.
-            if emb is not None:
-                rows = tim_hybrid(
-                    c, text, emb, ngay=ngay, top_k=settings.RERANK_LAY_VE,
-                    van_ban_ids=van_ban_me_ids,
-                )
-            else:
-                rows = tim_hybrid_tu_text(
-                    c, text, ngay=ngay, top_k=settings.RERANK_LAY_VE,
-                    van_ban_ids=van_ban_me_ids,
-                )
+            rows = tim_hybrid_tu_text(
+                c, text, ngay=ngay, top_k=settings.RERANK_LAY_VE,
+                van_ban_ids=van_ban_me_ids,
+            )
             if not rows:
                 return dv, [], {}
             diem_rrf = {r["chunk_id"]: r["diem_rrf"] for r in rows}
@@ -170,4 +164,29 @@ def chay_tier2(don_vi_list: list, emb_by_id: dict, *, trich_yeu: str, ngay: date
                     "tac_dong": u.get("tac_dong"),   # kem sua doi (neu co) de tra ra ket qua
                     "cc_vi_tri": vi_tri_can_cu(u),  # vi tri can cu: Dieu X khoan Y
                 })
+                # Nhieu loi trong 1 don vi: moi loi phu -> 1 entry VI_PHAM rieng (tranh trung loi chinh)
+                if trang_thai == "VI_PHAM":
+                    for loi in (kq_llm.get("cac_loi_them") or []):
+                        if not isinstance(loi, dict):
+                            continue
+                        snip2 = (loi.get("noi_dung_du_thao") or "").strip()
+                        if not snip2 or snip2 == snippet:
+                            continue
+                        u2 = uv_map.get(loi.get("khoan_id")) or u
+                        ok2 = la_snippet_hop_le(snip2, dv.noi_dung)
+                        dx2 = loi.get("de_xuat_sua", "")
+                        if ok2:
+                            dx2 = cat_theo_pham_vi(dx2, snip2, dv.noi_dung)
+                        tier2_kq.append({
+                            "don_vi_id": dv.id, "trang_thai": "VI_PHAM",
+                            "doan_du_thao": snip2 if ok2 else dv.noi_dung,
+                            "so_hieu": u2.get("so_hieu", ""),
+                            "ten_van_ban": u2.get("ten_van_ban", ""),
+                            "trich_dan": loi.get("trich_dan") or u2.get("noi_dung", ""),
+                            "giai_thich": loi.get("giai_thich", ""),
+                            "de_xuat_sua": dx2,
+                            "tin_cay": kq_llm.get("tin_cay", 0.0),
+                            "tac_dong": u2.get("tac_dong"),
+                            "cc_vi_tri": vi_tri_can_cu(u2),
+                        })
     return tier2_kq
