@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     RERANK_LAY_VE: int = 40         # so ung vien lay ra tu hybrid truoc khi rerank
     RERANK_TOP_N: int = 5           # so ung vien sau rerank gui len LLM
 
+    # So luot hoi-dap gan nhat /ask ghi nho (0 = tat, khong nho). Chi nho VAN BAN hoi-dap,
+    # KHONG kem khoi can cu cu -> tranh phinh context.
+    HISTORY_CHAT: int = 10
+
     EMBED_URL: str = "http://localhost:11434/v1"
     EMBED_MODEL: str = "bge-m3"
     EMBED_DIM: int = 1024

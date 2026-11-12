@@ -120,3 +120,42 @@ def test_bo_quoc_hieu_tieu_ngu():
     blob = " ".join(dv.noi_dung for dv in segment_du_thao(text, "TL-x").don_vi)
     assert "Chánh án" in blob
     assert "CỘNG" not in blob and "Độc lập" not in blob and "Hà Nội" not in blob
+
+
+def test_phu_luc_kem_theo_va_block_ky():
+    """QĐ kèm theo QUY ĐỊNH: tiêu đề phụ lục không dồn vào Điều QĐ trước; block ký
+    (TỈNH.../Số:.../CỘNG HÒA 'HÒA'/Nơi nhận + danh sách) không dồn vào Điều cuối."""
+    text = (
+        "QUYẾT ĐỊNH\n"
+        "Điều 3. Chánh Văn phòng chịu trách nhiệm thi hành Quyết định này.\n"
+        "QUY ĐỊNH\n"
+        "Về tiếp công dân, giải quyết khiếu nại\n"
+        "(Kèm theo Quyết định số      /2026/QĐ-UBND ngày ... năm 2026 của UBND tỉnh)\n"
+        "___________\n"
+        "Chương I\n"
+        "Điều 1. Phạm vi điều chỉnh\n"
+        "Quy định này quy định về việc tiếp công dân.\n"
+        "Điều 16. Điều khoản thi hành\n"
+        "Trong quá trình thực hiện, nếu vướng mắc thì phản ánh về Thanh tra tỉnh./.\n"
+        "ỦY BAN NHÂN DÂN\n"
+        "TỈNH ...\n"
+        "Số:      /2026/QĐ-UBND\n"
+        "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\n"
+        "Độc lập - Tự do - Hạnh phúc\n"
+        "Nơi nhận:\n"
+        "- Như Điều 3;\n"
+        "- Lưu: VT, TTr.\n"
+        "TM. ỦY BAN NHÂN DÂN\n"
+        "CHỦ TỊCH\n"
+    )
+    kq = segment_du_thao(text, "TL-pl")
+    blob = " ".join(dv.noi_dung for dv in kq.don_vi)
+    # Khong dinh tieu de phu luc / block ky
+    for rac in ("QUY ĐỊNH", "Kèm theo", "Nơi nhận", "/QĐ-UBND", "CỘNG", "Như Điều 3",
+                "Lưu: VT", "CHỦ TỊCH", "TỈNH ..."):
+        assert rac not in blob, f"segment dinh rac: {rac!r}"
+    # Noi dung that cua phu luc van con (body Dieu 1 + tieu de dung)
+    assert "tiếp công dân" in blob
+    assert any(dv.tieu_de == "Phạm vi điều chỉnh" for dv in kq.don_vi)
+    d16 = next(dv for dv in kq.don_vi if dv.so_dieu == "16")
+    assert d16.noi_dung.endswith("./.")

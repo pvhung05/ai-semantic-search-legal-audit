@@ -82,6 +82,7 @@ def hoi_dap(
     cap_max: int | None = None, nguong_rrf: float = 0.0,
     is_local: bool | None = None,
     think: bool | None = None,
+    lich_su: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Tra ve {tra_loi, can_cu, so_can_cu}. Rong neu khong tim thay chunk nao."""
     cau_hoi = cau_hoi.strip()
@@ -107,16 +108,23 @@ def hoi_dap(
     if not ung_vien:
         return rong
 
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": (
-            f"CAU HOI: {cau_hoi}\n\n"
-            f"CAC CAN CU PHAP LY (top-{len(ung_vien)} khoan lien quan):\n"
-            f"{_dinh_dang_can_cu(ung_vien)}\n\n"
-            "Hay tra loi CAU HOI mot cach tu nhien, de hieu, moi y co dan chieu [so] can cu "
-            "tuong ung."
-        )},
-    ]
+    messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
+    # Nho hoi-dap truoc do (chi VAN BAN, khong kem can cu) -> giu mach hoi tiep.
+    if lich_su and settings.HISTORY_CHAT > 0:
+        for luot in lich_su[-settings.HISTORY_CHAT:]:
+            hoi, dap = (luot.get("hoi") or "").strip(), (luot.get("dap") or "").strip()
+            if hoi:
+                messages.append({"role": "user", "content": hoi})
+            if dap:
+                messages.append({"role": "assistant", "content": dap})
+    messages.append({"role": "user", "content": (
+        f"CAU HOI: {cau_hoi}\n\n"
+        f"CAC CAN CU PHAP LY (top-{len(ung_vien)} khoan lien quan):\n"
+        f"{_dinh_dang_can_cu(ung_vien)}\n\n"
+        "Hay tra loi CAU HOI mot cach tu nhien, de hieu, moi y co dan chieu [so] can cu "
+        "tuong ung. Neu cau hoi la hoi tiep (vd 'the con...', 'truong hop do thi sao'), "
+        "hieu theo ngu canh cac luot truoc."
+    )})
     tra_loi = goi_chat(messages, is_local=is_local, think=think)  # temperature theo settings.LLM_TEMPERATURE (.env)
     ngay_iso = (ngay or date.today()).isoformat()
     return {

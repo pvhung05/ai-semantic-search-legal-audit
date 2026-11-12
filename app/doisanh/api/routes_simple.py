@@ -34,6 +34,11 @@ router = APIRouter(tags=["simple"])
 # ============================================================
 # 1) /ask
 # ============================================================
+class LichSuChat(BaseModel):
+    hoi: str = ""
+    dap: str = ""
+
+
 class AskRequest(BaseModel):
     cau_hoi: str = Field(..., min_length=1, max_length=2000)
     top_k: int = Field(8, ge=1, le=20)
@@ -41,13 +46,19 @@ class AskRequest(BaseModel):
         None, description="None=theo .env; true=Qwen local; false=Claude",
     )
     think: Optional[bool] = Field(None, description="Chi model local: bat/tat thinking. None=theo .env")
+    lich_su: list[LichSuChat] = Field(
+        default_factory=list, description="Cac luot hoi-dap truoc (nho theo HISTORY_CHAT)",
+    )
 
 
 @router.post("/ask")
 def ask(req: AskRequest) -> dict:
     try:
         with ket_noi() as conn:
-            return hoi_dap(conn, req.cau_hoi, top_k=req.top_k, is_local=req.is_local, think=req.think)
+            return hoi_dap(
+                conn, req.cau_hoi, top_k=req.top_k, is_local=req.is_local, think=req.think,
+                lich_su=[l.model_dump() for l in req.lich_su],
+            )
     except Exception as exc:
         logger.exception("/ask loi")
         raise HTTPException(500, str(exc)) from exc

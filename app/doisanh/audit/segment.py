@@ -30,7 +30,8 @@ RE_VE_HEADER = re.compile(r"^Về\s+[A-ZĐa-zđàáạảâầấậẩẫăằ�
 RE_CAU = re.compile(r"(?<=[\.;!?])\s+(?=[A-ZĐa-zđ0-9\"])")
 
 # Boilerplate quoc hieu/tieu ngu/dia danh-ngay o block ky -> bo qua khi segment.
-RE_QUOC_HIEU = re.compile(r"CỘNG\s*HO[ÀA]\s*XÃ\s*HỘI\s*CHỦ\s*NGHĨA\s*VIỆT\s*NAM", re.I)
+# H[OÒ][ÀA]? khop ca 'HÒA' (dau o O) lan 'HOÀ'/'HOA' (dau o A) - 2 cach bo dau tieng Viet.
+RE_QUOC_HIEU = re.compile(r"CỘNG\s*H[OÒ][ÀA]?\s*XÃ\s*HỘI\s*CHỦ\s*NGHĨA\s*VIỆT\s*NAM", re.I)
 RE_TIEU_NGU = re.compile(r"Độc\s*lập\s*-\s*Tự\s*do\s*-\s*Hạnh\s*phúc", re.I)
 RE_DIA_DANH_NGAY = re.compile(r"^[^,\n]{1,30},\s*ngày\b.*\bnăm\b", re.I)
 # Co quan ban hanh / chuc danh nguoi ky o block ky cuoi VB - dong CHU HOA dung rieng.
@@ -39,17 +40,26 @@ RE_DIA_DANH_NGAY = re.compile(r"^[^,\n]{1,30},\s*ngày\b.*\bnăm\b", re.I)
 RE_CO_QUAN_KY = re.compile(
     r"^(TÒA ÁN NHÂN DÂN|VIỆN KIỂM SÁT NHÂN DÂN|ỦY BAN NHÂN DÂN|HỘI ĐỒNG NHÂN DÂN|CHÍNH PHỦ"
     r"|QUỐC HỘI|BỘ [A-ZÀ-Ỹ]|CHÁNH ÁN|PHÓ CHÁNH ÁN|BỘ TRƯỞNG|THỦ TƯỚNG|CHỦ TỊCH|PHÓ CHỦ TỊCH"
-    r"|KT\.|TM\.|TL\.|NƠI NHẬN)"
+    r"|TỈNH\b|THÀNH PHỐ\b|KT\.|TM\.|TL\.|NƠI NHẬN)"
 )
+# Them cho block ky: dong phan cach '____', so hieu VB du thao 'Số: .../2026/QĐ-UBND'.
+RE_DAU_PHAN_CACH = re.compile(r"^[_\-–—]{3,}\s*$")
+RE_SO_HIEU_KY = re.compile(r"^Số:\s*\S*\s*/\s*\d{4}\s*/")
+# Tieu de van ban con (phu luc) 'Ban hanh kem theo / Kem theo Quyet dinh so ...' -> ranh gioi.
+RE_KEM_THEO = re.compile(r"^\(?\s*(Ban hành kèm theo|Kèm theo)\b", re.I)
+# Khoi 'Noi nhan:' o cuoi VB -> tu day tro di la danh sach nhan + chu ky, bo qua.
+RE_NOI_NHAN = re.compile(r"^Nơi\s*nhận\s*:", re.I)
 
 
 def _la_boilerplate(line: str) -> bool:
-    """Dong quoc hieu / tieu ngu / 'dia danh, ngay...' / co quan ban hanh - nguoi ky (block ky)."""
+    """Dong quoc hieu / tieu ngu / 'dia danh, ngay...' / co quan ban hanh - nguoi ky / phan cach / so hieu."""
     return bool(
         RE_QUOC_HIEU.search(line)
         or RE_TIEU_NGU.search(line)
         or RE_DIA_DANH_NGAY.match(line)
         or RE_CO_QUAN_KY.match(line)
+        or RE_DAU_PHAN_CACH.match(line)
+        or RE_SO_HIEU_KY.match(line)
     )
 
 
@@ -147,6 +157,7 @@ def _segment_co_dieu(lines: list[str], tai_lieu_id: str, kq: KetQuaSegment) -> N
     co_khoan_trong_dieu: bool = False
     thu_tu = 0
     noi_dung_tam: list[str] = []
+    bo_qua_ky = False   # True sau khi gap 'Noi nhan:' -> bo qua block ky den Chuong/Dieu ke tiep
 
     def _flush_vao_khoan() -> None:
         # Gom noi_dung_tam vao DIEM dang mo (de '+' bullet / doan giai thich thuoc dung Diem);
@@ -214,6 +225,12 @@ def _segment_co_dieu(lines: list[str], tai_lieu_id: str, kq: KetQuaSegment) -> N
 
     for raw in lines:
         line = raw.strip()
+        # Dang trong block ky (sau 'Noi nhan:') -> bo qua, tru khi gap van ban con moi (Chuong/Dieu).
+        if bo_qua_ky:
+            if RE_CHUONG.match(line) or RE_DIEU.match(line):
+                bo_qua_ky = False
+            else:
+                continue
         if not line:
             _flush_vao_khoan()
             # Dong trong sau mot Dieu CHUA co than (Dieu one-liner cua QUYET DINH, hoac khoi
@@ -225,6 +242,15 @@ def _segment_co_dieu(lines: list[str], tai_lieu_id: str, kq: KetQuaSegment) -> N
                 so_dieu_hien_tai = dieu_id_hien_tai = tieu_de_dieu_hien_tai = None
             continue
         if _la_boilerplate(line):
+            continue
+        # 'Noi nhan:' -> bat dau block ky cuoi VB: chot don vi dang mo roi bo qua phan con lai.
+        if RE_NOI_NHAN.match(line):
+            if cur_khoan:
+                _chot_khoan()
+            else:
+                _flush_dieu_khong_khoan()
+            _reset_dieu()
+            bo_qua_ky = True
             continue
         # Chuong/Muc: KHONG tao chunk, chi lam ngu canh. Flush noi dung dang gom (thuoc
         # Khoan/Dieu truoc) roi reset ngu canh Dieu -> tieu de chuong/muc o DONG KE TIEP
@@ -258,6 +284,14 @@ def _segment_co_dieu(lines: list[str], tai_lieu_id: str, kq: KetQuaSegment) -> N
             cur_khoan = None
             cur_diem = None
             co_khoan_trong_dieu = False
+            continue
+        # Tieu de van ban con (phu luc 'Ban hanh kem theo Quyet dinh...') -> ranh gioi:
+        # reset ngu canh Dieu + BO khoi tieu de dang gom (tranh dinh vao Dieu truoc do).
+        if RE_KEM_THEO.match(line):
+            if cur_khoan:
+                _chot_khoan()
+            _reset_dieu()
+            noi_dung_tam.clear()
             continue
         m = RE_KHOAN.match(line)
         if m and so_dieu_hien_tai:

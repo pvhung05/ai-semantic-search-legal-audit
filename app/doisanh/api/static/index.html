@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>audit-legal — Đối chiếu dự thảo</title>
+<tvnptaudit-legal — Đối chiếu dự thảo</title>
 <style>
   :root {
     --primary: #1e3a8a;      /* xanh đậm */
@@ -22,7 +22,7 @@
     --cx-bg: #fffbeb;
   }
   * { box-sizing: border-box; }
-  html, body { margin:0; padding:0; height:100%; }
+  html, body { margin:0; padding:0; height:100%; overflow:hidden; }
   body {
     font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
     background: var(--bg); color: var(--text); font-size: 14px;
@@ -64,7 +64,7 @@
                          border: 1px solid var(--border); border-radius: 6px; }
 
   main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px;
-         height: calc(100vh - 60px); overflow: hidden; }
+         height: calc(100vh - 64px); overflow: hidden; }
   .pane {
     background: var(--card); border: 1px solid var(--border); border-radius: 10px;
     display: flex; flex-direction: column; overflow: hidden;
@@ -189,9 +189,21 @@
   .modal footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 
   /* Chat Hoi dap (/ask) */
-  .modal.chat { width: 34vw; min-width: 340px; max-width: 95vw; height: 70vh;
-                display: flex; flex-direction: column; }
-  @media (max-width: 760px) { .modal.chat { width: 95vw; } }
+  /* Popup chat: bung ra tu nut "Hoi dap" o goc tren phai */
+  #chat-modal { align-items: stretch; justify-content: flex-end; }
+  .modal.chat {
+    width: 50vw; min-width: 360px; max-width: 50vw;
+    height: 100vh; max-height: 100vh;
+    margin: 0; border-radius: 0;     /* panel dinh canh phai, khop panel van ban 50% ben trai */
+    display: flex; flex-direction: column;
+    transform-origin: top right;     /* bung ra tu goc nut Hoi dap */
+    animation: chatPop 0.18s ease-out;
+  }
+  @keyframes chatPop {
+    from { opacity: 0; transform: scale(0.9) translateX(20px); }
+    to   { opacity: 1; transform: scale(1) translateX(0); }
+  }
+  @media (max-width: 760px) { .modal.chat { width: 100vw; max-width: 100vw; } }
   .modal.chat h3 { display: flex; justify-content: space-between; align-items: center; }
   .chat-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;
               padding: 6px 2px; margin: 12px 0; }
@@ -218,18 +230,35 @@
   .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 18px;
            background: var(--primary); color: white; border-radius: 6px; z-index: 100;
            box-shadow: 0 4px 12px rgba(30,58,138,0.3); display: none; }
-  .toast.err { background: var(--vp); }
+  .toast.err { baVNPTund: var(--vp); }
   .toast.show { display: block; }
 
   /* Khung xem noi dung van ban o page Kho luat */
   #kholuat-frame { width: 100%; height: 100%; border: none; }
+
+  /* Panel xem van ban ben trai (mo tu can cu trong chat) */
+  #doc-panel { position: fixed; top: 0; left: 0; width: 50%; height: 100%;
+               background: #fff; box-shadow: 2px 0 16px rgba(0,0,0,0.25); z-index: 95;
+               display: none; flex-direction: column; }
+  #doc-panel.open { display: flex; }
+  #doc-panel .doc-head { display: flex; align-items: center; justify-content: space-between;
+               gap: 18px; padding: 14px 24px; color: #fff; height: 64px; flex-shrink: 0;
+               background: linear-gradient(90deg, var(--primary), var(--primary-light));
+               box-shadow: 0 2px 8px rgba(30,58,138,0.15); }
+  #doc-panel .doc-head .t { font-weight: 600; font-size: 16px; overflow: hidden;
+               text-overflow: ellipsis; white-space: nowrap; }
+  #doc-panel .doc-close { background: rgba(255,255,255,0.2); color: #fff; border: none;
+               border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 15px; }
+  #doc-panel .doc-close:hover { background: rgba(255,255,255,0.35); }
+  #doc-panel iframe { flex: 1; width: 100%; border: none; }
+  @media (max-width: 760px) { #doc-panel { width: 100%; } }
 </style>
 </head>
 <body>
 
 <header>
   <div>
-    <h1>AUDIT</h1>
+    <h1>ĐỐI CHIẾU PHÁP LÝ, TRA CỨU PHÁP LUẬT</h1>
     <div class="sub">Hệ thống đối chiếu dự thảo với kho pháp luật</div>
   </div>
   <nav>
@@ -245,7 +274,7 @@
     </div>
     <button class="btn nav-active" id="nav-audit" onclick="showPage('audit')">Đối sánh</button>
     <button class="btn" id="nav-kholuat" onclick="showPage('kholuat')">Kho luật</button>
-    <button class="btn" onclick="openChat()">💬 Hỏi đáp</button>
+    <button class="btn" onclick="openChat()">Hỏi đáp</button>
     <button class="btn" onclick="openLegalModal()">+ Nạp luật</button>
   </nav>
 </header>
@@ -334,16 +363,16 @@
       <input id="kholuat-tu" type="date" onchange="onLegalFilter()" title="Hiệu lực từ ngày"
              style="flex:1 1 130px; min-width:120px; padding:6px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit;" />
       <input id="kholuat-den" type="date" onchange="onLegalFilter()" title="Hiệu lực đến ngày"
-             style="flex:1 1 130px; min-width:120px; padding:6px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit;" />
-      <button class="btn" onclick="clearLegalDates()" title="Xoá lọc ngày" style="padding:6px 9px;">✕</button>
+             style="flex:1 1 130px; min-wvnpt120px; padding:6px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit;" />
+      <button cvnpt"btn" onclick="clearLegalDates()" title="Xoá lọc ngày" style="padding:6px 9px;">✕</button>
     </div>
     <div class="pane-body" id="kholuat-list">
       <div class="draft-placeholder">Đang tải danh sách…</div>
     </div>
     <div class="toolbar" id="kholuat-pager" style="display:none;">
-      <button class="btn" onclick="legalGoPage(-1)">← Trước</button>
+      <button class="btn" onclick="legalGoPage(-1)">← Trướvnpttton>
       <span class="status" id="kholuat-pageinfo"></span>
-      <button class="btn" onclick="legalGoPage(1)">Sau →</button>
+      <button class="btn" onclick="legalGoPage(1)">Sau →</buvnpt
     </div>
   </section>
 </main>
@@ -351,11 +380,11 @@
 <!-- Popup Hỏi đáp (làm mờ nền, ~1/3 màn hình) -->
 <div class="modal-mask" id="chat-modal">
   <div class="modal chat">
-    <h3>💬 Hỏi đáp kho pháp luật
+    <h3>Hỏi đáp pháp luật
       <button class="btn" onclick="closeChat()" style="padding:4px 10px;">✕</button>
     </h3>
     <div class="chat-log" id="chat-log">
-      <div class="chat-msg bot">Hỏi tôi về nội dung trong kho pháp luật. Câu trả lời sẽ kèm căn cứ [số].</div>
+      <div class="chat-msg bot">Hỏi tôi về pháp luật. Câu trả lời sẽ kèm căn cứ [số]. Click vào [số] để xem chi tiết.</div>
     </div>
     <div class="chat-input">
       <textarea id="chat-input" placeholder="Nhập câu hỏi… (Enter để gửi, Shift+Enter xuống dòng)"
@@ -419,6 +448,15 @@
   </div>
 </div>
 
+<!-- Panel xem van ban ben trai (mo tu can cu trong chat) -->
+<div id="doc-panel">
+  <div class="doc-head">
+    <span class="t" id="doc-title">Văn bản</span>
+    <button class="doc-close" onclick="closeDocPanel()">✕ Đóng</button>
+  </div>
+  <iframe id="doc-frame" sandbox="allow-same-origin"></iframe>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -448,6 +486,18 @@ function openChat() {
   const i = document.getElementById('chat-input'); if (i) i.focus();
 }
 function closeChat() { document.getElementById('chat-modal').classList.remove('open'); }
+
+// Panel xem van ban ben trai (mo tu can cu trong chat)
+function openDocPanel(id, title) {
+  if (!id) return;
+  document.getElementById('doc-title').textContent = title || 'Văn bản';
+  document.getElementById('doc-frame').src = API + '/legal/' + encodeURIComponent(id) + '/html';
+  document.getElementById('doc-panel').classList.add('open');
+}
+function closeDocPanel() {
+  document.getElementById('doc-panel').classList.remove('open');
+  document.getElementById('doc-frame').src = 'about:blank';
+}
 
 // Xem noi dung 1 van ban o cot trai page Kho luat
 function openLegalContent(id, title) {
@@ -749,7 +799,10 @@ function renderCanCu(list) {
         : `<div style="color:var(--cx); margin-top:4px;">⚠ Đã bị sửa đổi bởi ${esc(s.nguon || '')}${hau}</div>`
           + (s.noi_dung_sau_sua ? `<div class="cc-vt" style="color:var(--cx); margin-top:3px;">↳ Sau khi sửa</div><blockquote style="border-left-color:var(--cx);">${esc(s.noi_dung_sau_sua)}</blockquote>` : '');
     }
-    return `<div class="cc-item"><span class="cc-vt">[${c.so_tt}] ${esc(vt)}</span>`
+    const mo = c.van_ban_id
+      ? ` onclick="openDocPanel('${esc(c.van_ban_id)}', '${esc((c.so_hieu || '') + (c.ten_van_ban ? ' — ' + c.ten_van_ban : ''))}')" title="Mở văn bản ở panel trái" style="cursor:pointer;"`
+      : '';
+    return `<div class="cc-item"${mo}><span class="cc-vt">[${c.so_tt}] ${esc(vt)}</span>`
       + (c.ten_van_ban ? ` · <span style="color:var(--muted)">${esc(c.ten_van_ban)}</span>` : '')
       + (c.trich_dan ? `<blockquote>${esc(c.trich_dan)}</blockquote>` : '')
       + td
@@ -757,6 +810,8 @@ function renderCanCu(list) {
   }).join('');
   return `<div class="chat-cc"><details><summary>${list.length} căn cứ</summary>${items}</details></div>`;
 }
+
+let chatHistory = [];   // [{hoi, dap}] - gui kem /ask de chat nho hoi thoai (server cat theo HISTORY_CHAT)
 
 async function sendAsk() {
   const inp = document.getElementById('chat-input');
@@ -770,7 +825,10 @@ async function sendAsk() {
   try {
     const r = await fetch(API + '/ask', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cau_hoi: q, top_k: 8, is_local: isLocal, think: thinkParam() }),
+      body: JSON.stringify({
+        cau_hoi: q, top_k: 8, is_local: isLocal, think: thinkParam(),
+        lich_su: chatHistory.slice(-20),   // gui toi da 20 luot gan nhat; server cat theo HISTORY_CHAT
+      }),
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
@@ -778,6 +836,7 @@ async function sendAsk() {
     chatAppend(`<div class="chat-msg bot">${d.tra_loi ? renderMd(d.tra_loi) : '(không có trả lời)'}</div>`);
     const cc = renderCanCu(d.can_cu);
     if (cc) chatAppend(cc);
+    if (d.tra_loi) chatHistory.push({ hoi: q, dap: d.tra_loi });
   } catch (e) {
     loading.remove();
     chatAppend(`<div class="chat-msg bot">⚠ Lỗi: ${esc(e.message)}</div>`);
