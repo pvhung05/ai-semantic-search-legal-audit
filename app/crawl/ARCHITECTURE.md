@@ -9,7 +9,7 @@
   `seed-actions` → `seed-catalogs` → `discover` → `crawl` (hoặc `crawl-full` = crawl + fetch-cay) → `fetch-cay` → `fetch-tac-dong`. `stats` để xem tiến độ.
 
 **Quyết định thiết kế**
-- vbpl.vn là app Next.js: dữ liệu lấy bằng **POST Server Action** + parse **RSC flight payload** ([parser.py](parser.py), [doc_api.py](doc_api.py)), không có API công khai. Action-id được sniff tay, lưu ở [actions.py](actions.py) và bảng `vanban.action_config`.
+- vbpl.vn là app Next.js: dữ liệu lấy bằng **POST Server Action** + parse **RSC flight payload** ([parser.py](parser.py), [doc_api.py](doc_api.py)), không có API công khai. Action-id được sniff tay, lưu ở [actions.py](actions.py) và bảng `vanban.action_config`. Đọc response bằng `parser.parse_rsc_flight` (tôn trọng độ dài text-chunk `T<hex>,`), **không** tìm chuỗi mốc kiểu `</html>1:` — vbpl đã đổi đuôi HTML (11/2026: `</body>1:`) làm hỏng cách đó.
 - `fetch-cay`/`fetch-tac-dong` **chạy tăng dần**: chỉ lấy văn bản chưa có cây / chưa có cờ `da_fetch_tac_dong` (migration 017). `--all` để lấy lại hết.
 - Toàn bộ SQL ghi của service nằm trong [store.py](store.py).
 - `scripts/fetch_*.py` là script thăm dò từng API vbpl khi cần debug/sniff lại, không thuộc luồng chính.

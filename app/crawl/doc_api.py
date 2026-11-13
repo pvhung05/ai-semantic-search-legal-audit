@@ -47,19 +47,22 @@ def _post(fetcher: Fetcher, action: str, id_ref: str):
     return r
 
 
+def _trich_doc_info(text: str) -> dict:
+    """JSON thong tin van ban = chunk '1' cua RSC flight.
+
+    Chunk '2' la HTML dang text-literal 'T<hexlen>,...' va '1:{...}' noi lien sau no
+    (cu: '</html>1:', tu 11/2026: '</body>1:'). Doc theo do dai T-chunk nen khong phu
+    thuoc the dong HTML; KHONG tim '{"id":' (de trung object con nhu documentFields).
+    """
+    info = parse_rsc_flight(text).get("1")
+    if not isinstance(info, dict) or "id" not in info:
+        raise RuntimeError("Khong tim thay JSON doc_info")
+    return info
+
+
 def fetch_doc_info(fetcher: Fetcher, id_ref: str) -> dict:
-    """JSON thong tin van ban. Nam ngay sau '</html>1:' (response nhung ca HTML)."""
-    text = _post(fetcher, "doc_info", id_ref).text
-    marker = "</html>1:"
-    idx = text.rfind(marker)
-    if idx >= 0:
-        start = idx + len(marker)
-    else:
-        idx = text.rfind('{"id":')
-        if idx < 0:
-            raise RuntimeError("Khong tim thay JSON doc_info")
-        start = idx
-    return json.loads(text[start:].strip())
+    """JSON thong tin van ban (action doc_info)."""
+    return _trich_doc_info(_post(fetcher, "doc_info", id_ref).text)
 
 
 def fetch_luoc_do(fetcher: Fetcher, id_ref: str) -> dict:
