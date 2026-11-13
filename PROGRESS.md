@@ -15,6 +15,7 @@ Cập nhật cuối mỗi phiên làm việc (xem quy tắc trong [AGENTS.md](AG
 
 - **Tinh chỉnh để Qwen3:14b (model chính) phát hiện lỗi và đề xuất sửa đoạn dự thảo tốt hơn** — `app/doisanh/audit/prompts.py` (`prompt_tier2_khoan`), `so_sanh.py`. Commit gần nhất: `b2d71c2`.
   - Hướng đã thử thành công trên 5 ca nhưng **chưa tích hợp**: tách 2 bước — LLM chỉ trích dữ kiện, code ra quyết định giữ hay gỡ vi phạm.
+  - Dự thảo mẫu để kiểm tay và 5 ca thử trên nằm ở đâu (`data/` bị `.gitignore`): TODO: cần xác nhận.
 
 ## Bị chặn
 

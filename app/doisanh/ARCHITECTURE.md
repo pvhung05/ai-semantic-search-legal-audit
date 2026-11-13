@@ -5,7 +5,7 @@
 **Giao diện với module khác**
 - Chỉ import `app/core`. Đọc dữ liệu crawl từ DB (`vanban.document_cay`, `provision_impacts`, `document_content`), không import `app/crawl`.
 - CLI: `python -m app.doisanh.cli build-cay [--embed]` rồi `port-impacts` ([cli.py](cli.py)).
-- API: `uvicorn app.doisanh.api.main:app --port 8010`. Danh sách endpoint: [api/routes_simple.py](api/routes_simple.py). UI là một file [api/static/index.html](api/static/index.html).
+- API: `uvicorn app.doisanh.api.main:app --port 8010`. Danh sách endpoint: [api/routes_simple.py](api/routes_simple.py). UI là một file [api/static/index.html](api/static/index.html), phục vụ ở `GET /`, `GET /audit`, `GET /legal` (trang HTML) — **trùng đường dẫn** với `POST /audit` (API) và khác `GET /api/legal` (JSON).
 
 ## Luồng chính (đang chạy)
 

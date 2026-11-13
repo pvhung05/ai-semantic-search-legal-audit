@@ -12,7 +12,7 @@ Python ≥ 3.10, FastAPI, PostgreSQL 16 + pgvector, psycopg3 (không ORM), **kh�
 | `app/crawl/` | service 1: cào vbpl.vn → schema `vanban` | [ARCHITECTURE](app/crawl/ARCHITECTURE.md) · [CONSTRAINTS](app/crawl/CONSTRAINTS.md) |
 | `app/doisanh/` | service 2: dựng cây + chunk, truy hồi, audit, hỏi đáp, API + UI | [ARCHITECTURE](app/doisanh/ARCHITECTURE.md) · [audit CONSTRAINTS](app/doisanh/audit/CONSTRAINTS.md) |
 | `migrations/` | schema SQL `danhmuc` / `vanban` / `rag` | [ARCHITECTURE](migrations/ARCHITECTURE.md) · [CONSTRAINTS](migrations/CONSTRAINTS.md) |
-| `scripts/` | `init_db.py` (áp migration), `embed_chunks.py`; `fetch_*.py` để thăm dò API vbpl; phần còn lại là di sản | — |
+| `scripts/` | `init_db.py` (áp migration), `embed_chunks.py`, `crawl_vbpl.py` (vỏ gọi `app.crawl.cli`); `fetch_*.py` để thăm dò API vbpl; `audit.py`, `eval_audit.py`, `ingest.py`, `sync.py`, `seed_demo.py`, `embed_all.py` là di sản | — |
 | `.claude/skills/` | quy ước chi tiết theo chủ đề (code sạch, parser luật, DB, audit) | đọc khi chạm vùng tương ứng |
 | [PROGRESS.md](PROGRESS.md) | đã xong / đang làm / tiếp theo | **đọc trước khi bắt đầu việc** |
 
@@ -22,7 +22,7 @@ Python ≥ 3.10, FastAPI, PostgreSQL 16 + pgvector, psycopg3 (không ORM), **kh�
 python tasks.py setup      # .venv + dependency (Windows không có make; Linux có thể dùng `make setup`)
 ```
 
-Cần file `.env` ở gốc (không commit, không có mẫu trong repo) — tên biến và mặc định đọc ở `app/core/config.py`. Tối thiểu `DB_URL`; chạy thật cần thêm Ollama (LLM + embedding), tùy chọn `RERANK_URL`.
+Cần file `.env` ở gốc (không commit, không có mẫu trong repo) — tên biến và mặc định đọc ở `app/core/config.py`. Tối thiểu `DB_URL`; chạy thật cần PostgreSQL 16 + extension pgvector (cài tay — cấu hình Docker đã bỏ), Ollama với `ollama pull qwen3:14b` và `ollama pull bge-m3`, tùy chọn TEI rerank (`RERANK_URL`).
 
 ```bash
 python scripts/init_db.py                          # áp migrations (idempotent)
@@ -46,7 +46,7 @@ python tasks.py check      # lint (compileall) + pytest offline — phải xanh 
 python -m pytest tests/audit/test_validate.py -q   # một file; thêm ::ten_test cho một test
 ```
 
-- Test offline không cần DB/LLM. Test cần thật đánh dấu `@pytest.mark.llm` / `@pytest.mark.integration` và **không tự skip** khi thiếu DB: chạy `pytest` trần sẽ treo ~30s rồi fail ở `test_repo_van_ban.py`. Luôn dùng `tasks.py` (đã lọc marker và đặt `DB_URL` giả nếu thiếu `.env`).
+- Test offline không cần DB/LLM. Test cần thật đánh dấu `@pytest.mark.llm` / `@pytest.mark.integration` và **không tự skip** khi thiếu DB. Chạy `pytest` trần: không có `.env` → 6 lỗi collect (`DB_URL` required); có `.env` nhưng DB tắt → treo ~30s rồi fail ở `test_repo_van_ban.py`. Luôn dùng `tasks.py` (đã lọc marker và đặt `DB_URL` giả nếu thiếu `.env`).
 - **Chưa có bộ eval cho luồng `/audit` hiện tại** — đổi prompt/retrieval phải kiểm tay trên dự thảo mẫu qua UI hoặc `POST /audit`, và ghi lại ca đã thử.
 - Soi retrieval: `python tests/debug_retrieval.py "câu hỏi"` (cần DB + embedding).
 

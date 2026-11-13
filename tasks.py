@@ -18,6 +18,8 @@ ROOT = Path(__file__).resolve().parent
 VENV = ROOT / ".venv"
 VENV_PY = VENV / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 PY = str(VENV_PY) if VENV_PY.exists() else sys.executable
+if not VENV_PY.exists() and sys.argv[1:] != ["setup"]:
+    print("! Chua co .venv -> dung Python he thong (phien ban co the khac requirements.txt); chay `python tasks.py setup`")
 TEST_DEPS = ["pytest==9.1.1", "pytest-asyncio>=0.23"]
 CODE_DIRS = ["app", "scripts", "tests", "tasks.py"]
 
