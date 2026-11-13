@@ -34,30 +34,79 @@ def _norm(s: str | None) -> str:
     return re.sub(r"\s+", " ", (s or "")).strip()
 
 
+def _tach_can_cu_goc(s: str | None, nd_sau_sua: str | None = None) -> str:
+    """Tach bo khoi prefix tac dong [CAN CU NAY ...] va 'Noi dung sau khi sua: ...' neu co."""
+    if not s:
+        return ""
+    parts = s.split("\n---\n")
+    cleaned: list[str] = []
+    for p in parts:
+        t = p.strip()
+        if t.startswith("[CĂN CỨ NÀY") or t.startswith("[CAN CU NAY"):
+            idx = t.find("]")
+            if idx != -1:
+                rest = t[idx + 1:].strip()
+                if rest.lower().startswith("nội dung sau khi sửa:") or rest.lower().startswith("noi dung sau khi sua:"):
+                    after_label = rest.split(":", 1)[1].strip()
+                    if nd_sau_sua and after_label.startswith(nd_sau_sua.strip()):
+                        rest = after_label[len(nd_sau_sua.strip()):].strip()
+                    else:
+                        # Tim vi tri bat dau cua text quy pham goc (Dieu / Khoan / STT)
+                        m = re.search(r'\n(?=(?:Điều|Khoản|\d+\.))', rest, flags=re.IGNORECASE)
+                        if m:
+                            rest = rest[m.start():].strip()
+                        else:
+                            lines = rest.splitlines()
+                            rest = "\n".join(lines[1:]).strip()
+                cleaned.append(rest)
+                continue
+        cleaned.append(t)
+    return "\n---\n".join(c for c in cleaned if c)
+
+
 def _noi_dung_comment(vp: dict) -> str:
     cc = vp.get("can_cu_phap_ly") or {}
-    parts: list[str] = []
-    # Vi tri can cu: so hieu + Chuong/Dieu/Khoan/Diem + ten van ban
+    blocks: list[str] = []
+
+    # 1. Can cu phap ly goc (da loc bo khoi header tac dong trung lap)
     dinh_danh = " – ".join(x for x in (cc.get("so_hieu"), cc.get("vi_tri")) if x)
     if cc.get("ten_van_ban"):
         dinh_danh = f"{dinh_danh} ({cc['ten_van_ban']})" if dinh_danh else cc["ten_van_ban"]
+
+    goc_text = _tach_can_cu_goc(cc.get("trich_dan"), cc.get("noi_dung_sau_sua"))
+    phan_goc = []
     if dinh_danh:
-        parts.append("Căn cứ pháp lý: " + dinh_danh)
-    if cc.get("trich_dan"):
-        parts.append("Trích dẫn: " + cc["trich_dan"])
-    # Neu can cu da bi tac dong -> noi ro bi tac dong boi dieu/khoan/diem nao
+        phan_goc.append("Căn cứ pháp lý: " + dinh_danh)
+    if goc_text:
+        phan_goc.append(goc_text)
+    if phan_goc:
+        blocks.append("\n".join(phan_goc))
+
+    # 2. Can cu phap ly tac dong (neu co sua doi / bai bo)
     if cc.get("da_sua"):
+        vt = cc.get("vi_tri") or "Căn cứ"
         nguon = cc.get("sua_boi", "")
         ngay = cc.get("ngay_hieu_luc", "")
         hau = f" (hiệu lực {ngay})" if ngay else ""
+
+        phan_tac_dong = []
         if cc.get("da_het_hieu_luc"):
-            parts.append(f"⚠ Căn cứ đã BỊ BÃI BỎ bởi {nguon}{hau} — không còn hiệu lực.")
+            phan_tac_dong.append(f"⚠ {vt} đã bị bãi bỏ bởi {nguon}{hau} — không còn hiệu lực.")
         else:
-            parts.append(f"⚠ Căn cứ đã BỊ SỬA ĐỔI bởi {nguon}{hau}.")
-            if cc.get("noi_dung_sau_sua"):
-                parts.append("Nội dung sau khi sửa: " + cc["noi_dung_sau_sua"])
-    # Khong lap 'de_xuat_sua' trong comment: ban sua da duoc chen truc tiep thanh track-change.
-    return "\n".join(parts) or "Vi phạm (AI LEGAL)."
+            note_line = f"⚠ {vt} đã được sửa đổi bởi {nguon}{hau}"
+            nd_sau_sua = cc.get("noi_dung_sau_sua", "").strip()
+            if nd_sau_sua:
+                note_line += ":"
+                phan_tac_dong.append(note_line)
+                phan_tac_dong.append(nd_sau_sua)
+            else:
+                phan_tac_dong.append(note_line + ".")
+
+        if phan_tac_dong:
+            blocks.append("\n".join(phan_tac_dong))
+
+    # Giua 2 phan cach nhau 1 dong trong (\n\n)
+    return "\n\n".join(blocks) or "Vi phạm (AI LEGAL)."
 
 
 def _tim_paragraph(norm_paras: list[str], target: str) -> list[int]:
