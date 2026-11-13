@@ -13,9 +13,8 @@ Cập nhật cuối mỗi phiên làm việc (xem quy tắc trong [AGENTS.md](AG
 
 ## Đang làm
 
-- **Tinh chỉnh để Qwen3:14b (model chính) phát hiện lỗi và đề xuất sửa đoạn dự thảo tốt hơn** — `app/doisanh/audit/prompts.py` (`prompt_tier2_khoan`), `so_sanh.py`. Commit gần nhất: `b2d71c2`.
-  - Hướng đã thử thành công trên 5 ca nhưng **chưa tích hợp**: tách 2 bước — LLM chỉ trích dữ kiện, code ra quyết định giữ hay gỡ vi phạm.
-  - Dự thảo mẫu để kiểm tay và 5 ca thử trên nằm ở đâu (`data/` bị `.gitignore`): TODO: cần xác nhận.
+- **Tinh chỉnh để Qwen3:14b (model chính) phát hiện lỗi và đề xuất sửa đoạn dự thảo tốt hơn** — `app/doisanh/audit/prompts.py`, `so_sanh.py`: đã tách cascade 2-pass (Pass 1 phân loại nhanh `think=False`, Pass 2 suy luận sâu `think=True` sinh đề xuất sửa cho các mục vi phạm).
+  - Dự thảo mẫu để kiểm tay và 5 ca thử nằm ở đâu (`data/` bị `.gitignore`): TODO: cần xác nhận.
 
 ## Bị chặn
 
@@ -38,6 +37,7 @@ Cập nhật cuối mỗi phiên làm việc (xem quy tắc trong [AGENTS.md](AG
 
 ## Nhật ký phiên
 
+- 13/11/2026 — branch `feat/ai-agent`: tách luồng audit thành cascade 2-pass (Pass 1 phân loại nhanh `think=False`, Pass 2 suy luận sâu `think=True` cho các mục vi phạm để sinh đề xuất sửa); bổ sung `prompt_tier2_de_xuat`, cập nhật `so_sanh.py`, test `test_so_sanh_cascade.py` và cập nhật tài liệu module.
 - 13/11/2026 — branch `feat/ai-agent`: rà soát toàn bộ import và dependency trong `@app`, hoàn thiện `requirements.txt` và `pyproject.toml` (bổ sung `lxml`, `python-dotenv`, `PyYAML`; đồng bộ version pin theo `.venv` chuẩn).
 - 13/11/2026 — branch `docs/agent-harness`: thêm tài liệu agent, `tasks.py`, kiểm tra tài liệu; cập nhật skill `.claude/skills/` theo cấu trúc hiện tại.
 - 13/11/2026 — sửa crawl `doc_info` hỏng do vbpl đổi format (`</html>1:` → `</body>1:`), commit `8d5f10d`. 72 mục `crawl_queue` lỗi `Extra data…` cần reset `so_lan_thu` để crawl lại (mục đã đủ 3 lần thử sẽ không được `take_pending` lấy lại).

@@ -201,25 +201,70 @@ def prompt_tier2_khoan(
             "Lam theo QUY TRINH 3 BUOC va TU KIEM TRA. MOT doan co the co NHIEU loi DOC LAP"
             " (vd vua thu hep hinh thuc, vua dat nghia vu trai luat): ghi loi CHINH (nghiem trong nhat)"
             " o cac truong duoi, cac loi con lai cho vao 'cac_loi_them' (mang; [] neu chi 1 loi), moi"
-            " loi 1 phan tu rieng snippet/can cu/de xuat. Tra DUNG 1 object JSON (khong markdown):"
+            " loi 1 phan tu rieng snippet/can cu/giai thich. Tra DUNG 1 object JSON (khong markdown):"
             '\n{"trang_thai": "vi_pham|hop_le|chua_xac_dinh",'
             ' "can_cu": {"khoan_id": "<id Khoan me lien quan, rong neu chua_xac_dinh>",'
             ' "trich_dan": "<nguyen van Khoan me, rong neu chua_xac_dinh>"},'
             ' "noi_dung_du_thao": "<CHI khi vi_pham: CHEP CHINH XAC tung chu doan SAI'
             ' nam trong doan du thao - CHI phan sai thoi, KHONG chep lai ca doan vi dai va thua>",'
             ' "giai_thich": "<ly do ngan gon, neu ro diem khac biet neu vi_pham>",'
-            ' "de_xuat_sua": "<CHI khi vi_pham: CHINH noi_dung_du_thao cho DUNG luat roi chep nguyen'
-            ' ban DA SUA vao day. Day la CHUOI THAY THE truc tiep cho noi_dung_du_thao (thay snippet'
-            ' sai bang chuoi nay la van ban dung luat). NEU can cu da bi sua doi: sua theo DIEU LUAT'
-            ' MOI da TAI LAP (xem muc CAN CU DA BI SUA DOI), KHONG theo ban goc da cu. TUYET DOI KHONG'
-            ' viet dang huong dan/menh lenh nhu \'Sua X thanh Y\', \'nen sua...\', \'can thay...\';'
-            ' chi ghi dung van ban sau khi sua.'
-            ' Vd noi_dung_du_thao=\'tu 13 den 17 nguoi\' -> de_xuat_sua=\'tu 23 den 27 nguoi\'>",'
             ' "cac_loi_them": [{"khoan_id": "<id that trong ung vien>", "trich_dan": "<nguyen van khoan>",'
-            ' "noi_dung_du_thao": "<phan sai KHAC voi loi chinh>", "giai_thich": "<ly do>",'
-            ' "de_xuat_sua": "<ban da sua cho phan nay>"}],'
+            ' "noi_dung_du_thao": "<phan sai KHAC voi loi chinh>", "giai_thich": "<ly do>"}],'
             ' "tin_cay": 0.0}'
         )},
+    ]
+
+
+DE_XUAT_SUA_HE_THONG = HE_THONG_CHUNG + """
+Nhiệm vụ: Bạn là chuyên gia pháp chế soạn thảo văn bản quy phạm pháp luật Việt Nam.
+Một đoạn trong văn bản dự thảo ĐÃ ĐƯỢC XÁC ĐỊNH LÀ VI PHẠM (hoặc mâu thuẫn/không phù hợp) với một CĂN CỨ PHÁP LÝ cụ thể.
+Nhiệm vụ: Suy luận chi tiết về điểm xung đột và VIẾT LẠI ĐỀ XUẤT SỬA ĐỔI để đoạn dự thảo hoàn toàn phù hợp với căn cứ pháp lý và đúng quy chuẩn ngôn ngữ lập pháp.
+
+QUY TẮC BẮT BUỘC:
+1. SỬA TỐI THIỂU: 'de_xuat_sua' là chuỗi THAY THẾ TRỰC TIẾP cho 'noi_dung_sai' (hoặc đoạn dự thảo). Sửa đúng chỗ sai, giữ nguyên phạm vi; không viết lại cả đoạn dài nếu chỉ sai một cụm từ, con số, hoặc một điểm/khoản.
+2. BẢO TOÀN CHỦ THỂ & BỐI CẢNH: Giữ nguyên chủ thể, hệ thống cơ quan, đối tượng và văn cảnh của cơ quan ban hành dự thảo. TUYỆT ĐỐI không thay thế chủ thể của dự thảo bằng chủ thể thuộc cơ quan khác của văn bản luật cấp trên.
+3. KHÔNG VIẾT HƯỚNG DẪN / MỆNH LỆNH: Tuyệt đối KHÔNG viết 'Sửa X thành Y', 'Cần bỏ...', 'Nên thay...'. CHỈ trả về đúng văn bản hoàn chỉnh sau khi sửa.
+   Ví dụ:
+   - Sai: 'trong thời hạn 30 ngày làm việc' -> de_xuat_sua: 'trong thời hạn 10 ngày làm việc'
+   - Sai: 'ít nhất 70%' -> de_xuat_sua: 'ít nhất 85%'
+   - Sai (thêm trường hợp ngoài danh sách đóng): loại bỏ trường hợp tự thêm đó.
+4. CĂN CỨ CÓ SỬA ĐỔI: Nếu căn cứ có khối quy định sau sửa đổi/bổ sung, phải sửa theo quy phạm mới nhất sau khi sửa đổi, không sửa theo bản cũ.
+5. CHUẨN XÁC VĂN PHONG LẬP PHÁP: Ngắn gọn, chặt chẽ, đúng quy tắc văn bản quy phạm pháp luật Việt Nam.
+
+ĐỊNH DẠNG TRẢ LỜI: CHỈ trả 1 object JSON thuần túy (không markdown):
+{"giai_thich": "<phân tích sắc sảo lý do vi phạm và giải pháp khắc phục>", "de_xuat_sua": "<chuỗi văn bản thay thế hoàn chỉnh sau khi sửa>"}
+"""
+
+
+def prompt_tier2_de_xuat(
+    doan_du_thao: dict,
+    can_cu: dict,
+    snippet_sai: str = "",
+    ly_do_so_bo: str = "",
+    trich_yeu: str = "",
+) -> list[dict[str, str]]:
+    """Prompt tier2 Pass 2: suy luan va de xuat sua cho doan da xac dinh vi pham (think=True)."""
+    nd_sai = snippet_sai.strip() or doan_du_thao.get("noi_dung", "")
+    cc_rut_gon = {
+        "so_hieu": can_cu.get("so_hieu", ""),
+        "ten_van_ban": can_cu.get("ten_van_ban", ""),
+        "so_dieu": can_cu.get("so_dieu"),
+        "so_khoan": can_cu.get("so_khoan"),
+        "diem": can_cu.get("diem"),
+        "tieu_de_dieu": can_cu.get("tieu_de_dieu", ""),
+        "noi_dung": (can_cu.get("noi_dung") or "")[:2500],
+    }
+    user_content = (
+        (f"VAN BAN DU THAO noi ve (trich yeu): {trich_yeu}\n\n" if trich_yeu else "")
+        + f"DOAN DU THAO:\n{doan_du_thao.get('noi_dung', '')}\n\n"
+        + f"PHAN NOI DUNG XAC DINH VI PHAM (can sua):\n{nd_sai}\n\n"
+        + f"CAN CU PHAP LY BI VI PHAM:\n{str(cc_rut_gon)}\n\n"
+        + (f"GHI CHU VI PHAM SO BO:\n{ly_do_so_bo}\n\n" if ly_do_so_bo else "")
+        + "Hay suy luan chi tiet va tra JSON: {'giai_thich': '...', 'de_xuat_sua': '...'}"
+    )
+    return [
+        {"role": "system", "content": DE_XUAT_SUA_HE_THONG},
+        {"role": "user", "content": user_content},
     ]
 
 

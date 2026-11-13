@@ -4,7 +4,10 @@
 
 ## Hợp đồng đầu ra (không được phá)
 
-1. LLM trả **đúng 1 object JSON** theo schema cuối `prompt_tier2_khoan`: `trang_thai`, `can_cu{khoan_id, trich_dan}`, `noi_dung_du_thao`, `giai_thich`, `de_xuat_sua`, `cac_loi_them[]`, `tin_cay`. Đổi khóa nào thì sửa cả `so_sanh.chay_tier2`, UI (`api/static/index.html`) và `docx_track.py` trong cùng commit.
+1. Luồng audit chạy cascade 2-pass:
+   - **Pass 1** (`prompt_tier2_khoan`, mặc định `think=False`): phân loại nhanh `trang_thai` (`vi_pham`, `hop_le`, `chua_xac_dinh`), `can_cu{khoan_id, trich_dan}`, `noi_dung_du_thao` (snippet sai), `giai_thich` sơ bộ, `cac_loi_them[]`, `tin_cay`.
+   - **Pass 2** (`prompt_tier2_de_xuat`, mặc định `think=True`): chỉ chạy cho các mục `VI_PHAM`, nhận đúng căn cứ bị vi phạm để suy luận sâu và sinh `de_xuat_sua` cùng `giai_thich` hoàn chỉnh.
+   - Đầu ra cuối cùng của `so_sanh.chay_tier2` phải giữ đầy đủ các khóa: `trang_thai`, `doan_du_thao`, `so_hieu`, `ten_van_ban`, `trich_dan`, `giai_thich`, `de_xuat_sua`, `tin_cay`, `tac_dong`, `cc_vi_tri`. Đổi khóa nào thì sửa cả UI (`api/static/index.html`) và `docx_track.py` trong cùng commit.
 2. Mọi verdict đi qua `_chuan_hoa_trang_thai`: chuỗi lạ → `CHUA_XAC_DINH`. Không thêm trạng thái thứ 4.
 3. `can_cu.khoan_id` phải thuộc tập ứng viên đã đưa vào prompt; không khớp thì code lấy ứng viên đầu (hành vi hiện tại, xem mục Biết là còn thiếu).
 4. `noi_dung_du_thao` chỉ được dùng nếu `la_snippet_hop_le` (là chuỗi con thật, ngắn hơn đoạn gốc); ngược lại dùng nguyên đoạn. `de_xuat_sua` phải là **chuỗi thay thế trực tiếp** cho snippet (không phải câu mệnh lệnh "sửa X thành Y") — `cat_theo_pham_vi` và DOCX track-change dựa vào điều này.
