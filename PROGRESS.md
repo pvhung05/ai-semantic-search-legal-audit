@@ -37,6 +37,7 @@ Cập nhật cuối mỗi phiên làm việc (xem quy tắc trong [AGENTS.md](AG
 
 ## Nhật ký phiên
 
+- 13/11/2026 — branch `feat/ai-agent`: sửa lỗi đề xuất sửa trùng lặp dự thảo và sửa định dạng căn cứ pháp lý: (1) gỡ bỏ regex ép xuống dòng Chương/Điều/Khoản/Điểm tránh ngắt vụn câu; giữ nguyên văn bản luật tự nhiên và cách dòng rõ ràng giữa căn cứ gốc và căn cứ tác động; (2) quy định rõ trong Pass 2 khi đoạn vi phạm tự đặt thêm ngoại lệ/trái luật cần bãi bỏ thì trả về `de_xuat_sua: ""` (UI tự hiện "Đề xuất: bỏ/loại phần nội dung vi phạm này"); bổ sung `la_de_xuat_trung_lap` và `la_de_xuat_menh_lenh_bo` trong `validate.py` để tự động lọc sạch.
 - 13/11/2026 — branch `feat/ai-agent`: ẩn triệt để nội dung luật sửa đổi của LLM trên UI và DOCX: chỉ hiển thị căn cứ gốc và thông tin căn cứ tác động (nguồn sửa đổi/bãi bỏ); giữ khối nội dung sửa đổi cho LLM đối chiếu nội bộ; chuẩn hóa `tach_can_cu_goc` trong `validate.py`.
 - 13/11/2026 — branch `feat/ai-agent`: tinh gọn comment DOCX track-changes (`_noi_dung_comment`): tách sạch 2 khối (căn cứ gốc đã lọc tiền tố kỹ thuật và căn cứ tác động sửa đổi/bãi bỏ), phân cách bằng 1 dòng trống kèm ghi chú `⚠ [vị_trí] đã được sửa đổi bởi [nguồn] (hiệu lực [ngày]):`; bổ sung unit tests.
 - 13/11/2026 — branch `feat/ai-agent`: định dạng hiển thị căn cứ trên UI (`index.html`): tự động xuống dòng và thụt lề theo cấu trúc Chương, Điều, Khoản (1., 2...), Điểm (a, b...) và phân tách nhiều căn cứ (`---`).

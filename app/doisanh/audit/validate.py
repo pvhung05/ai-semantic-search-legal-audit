@@ -32,6 +32,34 @@ def cat_theo_pham_vi(de_xuat: str, snippet: str, nguyen_van: str) -> str:
     return de_xuat if cat == d else cat
 
 
+def la_de_xuat_trung_lap(de_xuat: str, snippet: str, nguyen_van: str) -> bool:
+    """Kiem tra xem de_xuat_sua co bi trung lap hoac giong het noi dung sai/nguyen van khong.
+
+    Neu giong het thi khong phai la de xuat sua hop le (thuong do LLM chep lai doan sai).
+    """
+    if not de_xuat or not de_xuat.strip():
+        return False
+    d = chuan_so_sanh(de_xuat)
+    s = chuan_so_sanh(snippet)
+    nv = chuan_so_sanh(nguyen_van)
+    return bool(d) and (d == s or d == nv)
+
+
+def la_de_xuat_menh_lenh_bo(de_xuat: str) -> bool:
+    """Kiem tra xem de_xuat co phai la cau menh lenh/huong dan yeu cau bo doan vi pham thay vi chuoi thay the."""
+    if not de_xuat or not de_xuat.strip():
+        return False
+    d = chuan_so_sanh(de_xuat).rstrip(".:,;")
+    cum_tu = (
+        "bỏ", "bãi bỏ", "loại bỏ", "cần bỏ", "nên bỏ", "đề nghị bỏ", "xóa bỏ", "hủy bỏ",
+        "bỏ đoạn này", "bỏ quy định này", "loại bỏ quy định này", "bãi bỏ quy định này",
+        "bỏ phần này", "bỏ nội dung này", "loại bỏ nội dung này",
+    )
+    if d in cum_tu:
+        return True
+    return any(d.startswith(p + " ") for p in ("cần bỏ", "nên bỏ", "đề nghị bỏ", "yêu cầu bỏ", "bãi bỏ", "loại bỏ"))
+
+
 def vi_tri_can_cu(u: dict) -> str:
     """Vi tri can cu phap ly: 'Chuong .. Dieu X khoan Y diem Z' tu ung vien khoan me."""
     parts = []

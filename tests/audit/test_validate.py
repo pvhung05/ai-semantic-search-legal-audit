@@ -1,5 +1,10 @@
 """cat_theo_pham_vi: de_xuat_sua phai thay DUNG phan sai (snippet), khong lap lai ca doan."""
-from app.doisanh.audit.validate import cat_theo_pham_vi, tach_can_cu_goc
+from app.doisanh.audit.validate import (
+    cat_theo_pham_vi,
+    la_de_xuat_menh_lenh_bo,
+    la_de_xuat_trung_lap,
+    tach_can_cu_goc,
+)
 
 DOAN = "Câu một đúng. Câu hai sai thời hạn 30 ngày. Câu ba đúng."
 SNIP = "Câu hai sai thời hạn 30 ngày."
@@ -39,3 +44,23 @@ def test_tach_can_cu_goc_co_khoi_llm():
 def test_tach_can_cu_goc_khong_co_khoi_llm():
     raw = "Điều 107. Làm thêm giờ không quá 300 giờ."
     assert tach_can_cu_goc(raw) == raw
+
+
+def test_la_de_xuat_trung_lap():
+    doan = "Cán bộ được từ chối tiếp đối với người không xuất trình căn cước điện tử mức 2."
+    snip = "người không xuất trình căn cước điện tử mức 2."
+    # Trung lap voi snippet
+    assert la_de_xuat_trung_lap(snip, snip, doan) is True
+    # Trung lap voi nguyen van doan
+    assert la_de_xuat_trung_lap(doan, snip, doan) is True
+    # Khac (de xuat sua thuc su)
+    assert la_de_xuat_trung_lap("người không xuất trình giấy tờ tùy thân.", snip, doan) is False
+    # Rong
+    assert la_de_xuat_trung_lap("", snip, doan) is False
+
+
+def test_la_de_xuat_menh_lenh_bo():
+    assert la_de_xuat_menh_lenh_bo("Bỏ đoạn này") is True
+    assert la_de_xuat_menh_lenh_bo("Cần bỏ trường hợp tự thêm này") is True
+    assert la_de_xuat_menh_lenh_bo("Loại bỏ") is True
+    assert la_de_xuat_menh_lenh_bo("10 ngày làm việc") is False

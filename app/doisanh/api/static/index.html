@@ -720,11 +720,11 @@ function renderItem(k, tag) {
   const label = tag === 'VI_PHAM' ? 'VI PHẠM' : tag === 'HOP_LE' ? 'HỢP LỆ' : 'CHƯA XÁC ĐỊNH';
   const cc = k.can_cu_phap_ly || {};
   const cc_nguon = [cc.so_hieu, cc.vi_tri].filter(Boolean).join(' – ');
-  // Căn cứ tác động đến căn cứ gốc (nếu có) - KHÔNG hiển thị nội dung luật LLM sửa
+  // Căn cứ tác động đến căn cứ gốc (nếu có) - cách 1 dòng với căn cứ gốc, KHÔNG hiển thị nội dung luật LLM sửa
   const sau_sua_html = cc.da_sua ? (
     cc.da_het_hieu_luc
-      ? `<div class="de-xuat" style="color:var(--vp); margin-top:6px;">⚠ ${esc(cc.vi_tri || 'Căn cứ')} đã bị bãi bỏ bởi ${esc(cc.sua_boi || '')}${cc.ngay_hieu_luc ? ` (hiệu lực ${esc(cc.ngay_hieu_luc)})` : ''} — không còn hiệu lực.</div>`
-      : `<div class="row-label" style="color:var(--cx); margin-top:6px;">⚠ ${esc(cc.vi_tri || 'Căn cứ')} đã được sửa đổi bởi ${esc(cc.sua_boi || '')}${cc.ngay_hieu_luc ? ` (hiệu lực ${esc(cc.ngay_hieu_luc)})` : ''}.</div>`
+      ? `<div style="color:var(--vp); margin-top:10px; font-size:12.5px;">⚠ ${esc(cc.vi_tri || 'Căn cứ')} đã bị bãi bỏ bởi ${esc(cc.sua_boi || '')}${cc.ngay_hieu_luc ? ` (hiệu lực ${esc(cc.ngay_hieu_luc)})` : ''} — không còn hiệu lực.</div>`
+      : `<div style="color:var(--cx); margin-top:10px; font-size:12.5px;">⚠ ${esc(cc.vi_tri || 'Căn cứ')} đã được sửa đổi bởi ${esc(cc.sua_boi || '')}${cc.ngay_hieu_luc ? ` (hiệu lực ${esc(cc.ngay_hieu_luc)})` : ''}.</div>`
   ) : '';
   const cc_html = (cc.trich_dan || cc.da_sua) ? `
     <div class="row">
@@ -754,7 +754,7 @@ function esc(s) {
   }[c]));
 }
 
-// Xuong dong va thut le ro rang tai Chuong, Dieu, Khoan, Diem cho can cu phap ly
+// Dinh dang can cu phap ly: giu nguyen van dinh dang tu nhien cua luat, cach dong divider (---)
 function formatCanCu(s) {
   if (!s) return '';
   // Loai bo khoi header danh rieng cho LLM neu co
@@ -769,15 +769,7 @@ function formatCanCu(s) {
   }
   let t = esc(raw).trim();
   t = t.replace(/\s*---\s*/g, '\n\n---\n\n');
-  t = t.replace(/(?:^|\r?\n|\s+)(Chương\s+[IVXLCDM\d]+[.:\s]*)/giu, '\n\n$1\n');
-  t = t.replace(/(?:^|\r?\n|\s+)(Điều\s+\d+[.:\s]*)/giu, '\n\n$1');
-  t = t.replace(/(?:^|\r?\n|\s+)(Khoản\s+\d+[.:\s]*)/giu, '\n\n$1');
-  t = t.replace(/(?:^|\s)(Điều\s+\d+\.)|(?:\r?\n|\s+)(\d{1,2}\.\s+)(?=[A-ZÀ-Ỹa-zà-ỹ])/gu, (m, dieu, khoan) => {
-    return dieu ? m : ('\n\n' + khoan);
-  });
-  t = t.replace(/(?:^|\r?\n|\s+)(Điểm\s+[a-zđ][.:\)\s]*)/giu, '\n   $1');
-  t = t.replace(/(?:^|\r?\n|\s+)([a-zđ]\)\s+)/giu, '\n   $1');
-  return t.replace(/\n{3,}/g, '\n\n').trim();
+  return t;
 }
 
 // Markdown rut gon cho cau tra loi LLM: esc truoc, roi **dam**, *nghieng*, `code`, gach dau dong, xuong dong.

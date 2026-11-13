@@ -219,18 +219,24 @@ Một đoạn trong văn bản dự thảo ĐÃ ĐƯỢC XÁC ĐỊNH LÀ VI PH�
 Nhiệm vụ: Suy luận chi tiết về toàn bộ các điểm xung đột và VIẾT LẠI ĐỀ XUẤT SỬA ĐỔI HOÀN CHỈNH để đoạn dự thảo khắc phục đồng thời tất cả các vi phạm đó, hoàn toàn phù hợp với các căn cứ pháp lý và đúng quy chuẩn ngôn ngữ lập pháp.
 
 QUY TẮC BẮT BUỘC:
-1. SỬA TỐI THIỂU: 'de_xuat_sua' là chuỗi THAY THẾ TRỰC TIẾP cho 'noi_dung_sai' (hoặc đoạn dự thảo). Sửa đúng chỗ sai, giữ nguyên phạm vi; không viết lại cả đoạn dài nếu chỉ sai một cụm từ, con số, hoặc một điểm/khoản.
-2. BẢO TOÀN CHỦ THỂ & BỐI CẢNH: Giữ nguyên chủ thể, hệ thống cơ quan, đối tượng và văn cảnh của cơ quan ban hành dự thảo. TUYỆT ĐỐI không thay thế chủ thể của dự thảo bằng chủ thể thuộc cơ quan khác của văn bản luật cấp trên.
-3. KHÔNG VIẾT HƯỚNG DẪN / MỆNH LỆNH: Tuyệt đối KHÔNG viết 'Sửa X thành Y', 'Cần bỏ...', 'Nên thay...'. CHỈ trả về đúng văn bản hoàn chỉnh sau khi sửa.
-   Ví dụ:
-   - Sai: 'trong thời hạn 30 ngày làm việc' -> de_xuat_sua: 'trong thời hạn 10 ngày làm việc'
-   - Sai: 'ít nhất 70%' -> de_xuat_sua: 'ít nhất 85%'
-   - Sai (thêm trường hợp ngoài danh sách đóng): loại bỏ trường hợp tự thêm đó.
-4. CĂN CỨ CÓ SỬA ĐỔI: Nếu căn cứ có khối quy định sau sửa đổi/bổ sung, phải sửa theo quy phạm mới nhất sau khi sửa đổi, không sửa theo bản cũ.
-5. CHUẨN XÁC VĂN PHONG LẬP PHÁP: Ngắn gọn, chặt chẽ, đúng quy tắc văn bản quy phạm pháp luật Việt Nam.
+1. SỬA TỐI THIỂU & THAY THẾ TRỰC TIẾP:
+   - 'de_xuat_sua' là chuỗi THAY THẾ TRỰC TIẾP cho 'noi_dung_sai' (hoặc đoạn dự thảo). Sửa đúng chỗ sai, giữ nguyên phạm vi; không viết lại cả đoạn dài nếu chỉ sai một cụm từ, con số, hoặc một điểm/khoản.
+   - Ví dụ:
+     + Sai thời hạn: 'trong thời hạn 30 ngày làm việc' -> de_xuat_sua: 'trong thời hạn 10 ngày làm việc'
+     + Sai tỷ lệ: 'ít nhất 70%' -> de_xuat_sua: 'ít nhất 85%'
+2. TRƯỜNG HỢP LOẠI BỎ / BÃI BỎ ĐOẠN VI PHẠM (BẮT BUỘC ĐỂ CHUỖI RỖNG):
+   - Nếu vi phạm là do TỰ Ý ĐẶT THÊM ĐIỀU KIỆN / THÊM TRƯỜNG HỢP NGOÀI DANH SÁCH ĐÓNG của luật cấp trên (ví dụ: luật cấp trên liệt kê danh sách đóng các trường hợp từ chối tiếp công dân, nhưng dự thảo tự đặt thêm trường hợp từ chối khác...), hoặc toàn bộ đoạn dự thảo/snippet sai trái luật và KHÔNG THỂ giữ lại:
+     -> BẮT BUỘC trả về 'de_xuat_sua': "" (chuỗi rỗng)!
+     -> Khi đó hệ thống sẽ tự động gạch xóa đoạn này trong Word Track Changes và đề xuất 'bỏ/loại phần nội dung vi phạm này'.
+3. TUYỆT ĐỐI CẤM:
+   - TUYỆT ĐỐI KHÔNG chép lại nguyên văn đoạn dự thảo/snippet sai vào 'de_xuat_sua'. Nếu 'de_xuat_sua' trùng lặp với nội dung sai thì hệ thống sẽ coi là lỗi.
+   - Tuyệt đối KHÔNG viết câu mệnh lệnh/hướng dẫn như 'Sửa X thành Y', 'Cần bỏ đoạn này', 'Nên thay...'. Muốn loại bỏ đoạn sai thì để chuỗi rỗng "".
+4. BẢO TOÀN CHỦ THỂ & BỐI CẢNH: Giữ nguyên chủ thể, hệ thống cơ quan, đối tượng và văn cảnh của cơ quan ban hành dự thảo. TUYỆT ĐỐI không thay thế chủ thể của dự thảo bằng chủ thể thuộc cơ quan khác của văn bản luật cấp trên.
+5. CĂN CỨ CÓ SỬA ĐỔI: Nếu căn cứ có khối quy định sau sửa đổi/bổ sung, phải sửa theo quy phạm mới nhất sau khi sửa đổi, không sửa theo bản cũ.
+6. CHUẨN XÁC VĂN PHONG LẬP PHÁP: Ngắn gọn, chặt chẽ, đúng quy tắc văn bản quy phạm pháp luật Việt Nam.
 
 ĐỊNH DẠNG TRẢ LỜI: CHỈ trả 1 object JSON thuần túy (không markdown):
-{"giai_thich": "<phân tích sắc sảo lý do vi phạm các căn cứ và giải pháp khắc phục tổng thể>", "de_xuat_sua": "<chuỗi văn bản thay thế hoàn chỉnh sau khi sửa>"}
+{"giai_thich": "<phân tích sắc sảo lý do vi phạm các căn cứ và giải pháp khắc phục tổng thể>", "de_xuat_sua": "<chuỗi văn bản thay thế hoàn chỉnh sau khi sửa, hoặc chuỗi rỗng nếu cần loại bỏ/bãi bỏ hoàn toàn>"}
 """
 
 

@@ -11,7 +11,14 @@ from app.core.config import settings
 from app.core.db.session import ket_noi
 from app.core.models.llm import goi_json
 from app.doisanh.audit.prompts import prompt_tier2_de_xuat, prompt_tier2_khoan
-from app.doisanh.audit.validate import cat_theo_pham_vi, la_snippet_hop_le, tach_can_cu_goc, vi_tri_can_cu
+from app.doisanh.audit.validate import (
+    cat_theo_pham_vi,
+    la_de_xuat_menh_lenh_bo,
+    la_de_xuat_trung_lap,
+    la_snippet_hop_le,
+    tach_can_cu_goc,
+    vi_tri_can_cu,
+)
 from app.doisanh.retrieval.can_cu import nap_khoan_ung_vien
 from app.doisanh.retrieval.hybrid import tim_hybrid, tim_hybrid_tu_text
 
@@ -239,6 +246,8 @@ def chay_tier2(don_vi_list: list, emb_by_id: dict, *, trich_yeu: str, ngay: date
             de_xuat = kq_llm.get("de_xuat_sua", "") if trang_thai == "VI_PHAM" else ""
             if dung_snippet:
                 de_xuat = cat_theo_pham_vi(de_xuat, snippet, dv.noi_dung)
+            if la_de_xuat_trung_lap(de_xuat, snippet, dv.noi_dung) or la_de_xuat_menh_lenh_bo(de_xuat):
+                de_xuat = ""
 
             danh_sach_cc = kq_llm.get("_danh_sach_cc") or [u]
             u_main = danh_sach_cc[0]
