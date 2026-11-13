@@ -205,10 +205,14 @@ def chay_tier2(don_vi_list: list, emb_by_id: dict, *, trich_yeu: str, ngay: date
                 ly_do_so_bo=target_obj.get("giai_thich", ""),
                 is_local=is_local, trich_yeu=trich_yeu, think=think_pass2,
             )
-            if res.get("de_xuat_sua"):
+            if res.get("de_xuat_sua") is not None:
                 target_obj["de_xuat_sua"] = res["de_xuat_sua"]
             if res.get("giai_thich"):
                 target_obj["giai_thich"] = res["giai_thich"]
+            # Neu Pass 2 thu hep duoc snippet sai chinh xac hon nam trong doan goc
+            p2_snip = (res.get("noi_dung_sai") or "").strip()
+            if p2_snip and (p2_snip in dv_d.get("noi_dung", "") or la_snippet_hop_le(p2_snip, dv_d.get("noi_dung", ""))):
+                target_obj["noi_dung_du_thao"] = p2_snip
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=settings.LLM_SONG_SONG) as pool:
             list(pool.map(_chay_p2, tasks_pass2))

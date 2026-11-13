@@ -145,3 +145,30 @@ def test_noi_dung_comment_khong_tac_dong():
     assert "⚠" not in comment
     assert "Căn cứ pháp lý: 45/2019/QH14 – Điều 107 (Bộ luật Lao động)" in comment
     assert "Điều 107. Làm thêm giờ không quá 300 giờ." in comment
+
+
+def test_de_xuat_rong_xoa_dung_snippet_giu_phan_con_lai(tmp_path):
+    """Khi de_xuat_sua = "" (de nghi xoa bo doan sai): Word Track Changes phai gach xoa (<w:del>)
+    DUNG snippet sai, va GIU NGUYEN phan con lai cua paragraph chu khong phai to do ca doan."""
+    src = tmp_path / "in.docx"
+    out = tmp_path / "out.docx"
+    d = Document()
+    d.add_paragraph("Cán bộ tiếp công dân từ chối tiếp đối với người say rượu hoặc người không có tài khoản mức 2 theo quy định.")
+    d.save(str(src))
+
+    ket = {"ket_qua": {"VI_PHAM": [{
+        "noi_dung_du_thao": "hoặc người không có tài khoản mức 2",
+        "can_cu_phap_ly": {"so_hieu": "154/2026/NĐ-CP", "vi_tri": "Điều 4"},
+        "de_xuat_sua": "",
+    }]}}
+    assert danh_dau_vi_pham(src, ket, out) == 1
+
+    p = Document(str(out)).paragraphs[0]
+    xml = p._p.xml
+    # Snippet sai duoc boc <w:del> (Track Change xoa bo)
+    assert "<w:del " in xml and "người không có tài khoản mức 2" in xml
+    # Phan dung con lai giu nguyen trong .text
+    assert "Cán bộ tiếp công dân từ chối tiếp đối với người say rượu" in p.text
+    assert "theo quy định." in p.text
+    # Snippet da bi xoa khoi .text thuong (vi da nam trong w:delText)
+    assert "người không có tài khoản mức 2" not in p.text

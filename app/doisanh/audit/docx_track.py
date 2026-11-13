@@ -204,20 +204,19 @@ def danh_dau_vi_pham(docx_vao: str | Path, ket_qua: dict,
         new_text = (vp.get("de_xuat_sua") or "").strip()
         noi_dung = _noi_dung_comment(vp)
 
-        # Co ban sua -> thay snippet sai bang ban sua (to do phan moi) o doan dau tien chua no.
-        if new_text:
-            thay_duoc = False
-            for i, pt in enumerate(norm_paras):
-                if len(pt) >= _MIN_LEN and target in pt:
-                    if _thay_va_danh_dau(doc, paras[i], raw_target, new_text, noi_dung, tac_gia):
-                        norm_paras[i] = _norm(paras[i].text)  # cap nhat sau khi sua
-                        n += 1
-                        thay_duoc = True
-                        break
-            if thay_duoc:
-                continue
+        # Tim va ap dung Track Changes len snippet sai (thay the bang de xuat sua, hoac gach xoa neu de_xuat_sua rong)
+        thay_duoc = False
+        for i, pt in enumerate(norm_paras):
+            if len(pt) >= _MIN_LEN and target in pt:
+                if _thay_va_danh_dau(doc, paras[i], raw_target, new_text, noi_dung, tac_gia):
+                    norm_paras[i] = _norm(paras[i].text)  # cap nhat sau khi sua
+                    n += 1
+                    thay_duoc = True
+                    break
+        if thay_duoc:
+            continue
 
-        # Fallback: to do ca doan chua snippet + comment (khong thay the).
+        # Fallback: chi khi KHONG dinh vi duoc snippet trong van ban -> to do ca doan chua no
         for i in _tim_paragraph(norm_paras, target):
             runs = [r for r in paras[i].runs if r.text]
             if not runs:
