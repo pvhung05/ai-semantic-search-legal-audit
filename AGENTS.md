@@ -54,4 +54,13 @@ python -m pytest tests/audit/test_validate.py -q   # một file; thêm ::ten_tes
 - **Luồng audit đang chạy là `api/routes_simple.py` → `audit/so_sanh.py`.** `workflow.py`, `mapping.py`, `tier2.py`… là di sản bám schema đã drop — đừng sửa chúng để thay đổi hành vi `/audit`.
 - Không commit `.env`, mật khẩu, DB URL thật, hay các tệp `.gitignore` đang chặn (tài liệu nội bộ chứa thông tin nhạy cảm, cấu hình Docker). Repo đã chủ động gỡ tên tổ chức khỏi code/tài liệu (commit `62a64bc`) — đừng đưa lại.
 - Commit dưới tên tác giả repo, **không thêm dòng `Co-Authored-By` của AI**. Định dạng message: `[update]: …`, `[fix]: …`, `chore: …`, tiếng Việt.
-- Quy ước tên: code hiện tại dùng tiếng Việt không dấu (`ket_noi`, `tim_hybrid`); đã quyết định **chuyển toàn bộ sang tiếng Anh** (xem PROGRESS.md). Code mới viết tên tiếng Anh; đừng tự đổi tên code cũ ngoài đợt đổi tên.
+- Quy ước tên (chi tiết trong skill `clean-code-solid`): code hiện tại dùng tiếng Việt không dấu (`ket_noi`, `tim_hybrid`); đã quyết định **chuyển toàn bộ sang tiếng Anh** (xem PROGRESS.md). Code mới viết tên tiếng Anh; đừng tự đổi tên code cũ ngoài đợt đổi tên.
+
+## Quy tắc làm việc
+
+1. **Nguyên tử** — mỗi thao tác logic là một commit. Hỏng giữa chừng thì đưa về trạng thái sạch (`git restore`/`git stash` phần của mình), không để lại việc làm dở trong cây làm việc. Chỉ stage tệp mình sửa; không commit thay đổi sẵn có của người dùng.
+2. **Nhất quán** — chỉ commit khi `python tasks.py check` xanh.
+3. **Cô lập** — không làm thẳng trên `main`; mỗi agent một branch (`<loại>/<việc>`). Nhiều agent song song: mỗi agent ghi tiến độ vào `progress/<branch>.md` riêng, người merge gộp vào `PROGRESS.md`.
+4. **Bền vững** — điều phiên sau cần biết phải nằm trong tệp được git theo dõi (không chỉ trong chat, không trong tệp bị `.gitignore`). Cuối mỗi phiên cập nhật `PROGRESS.md` (đang làm / tiếp theo / nhật ký phiên, ghi ngày tuyệt đối).
+5. **Tài liệu đi cùng code** — sửa code của module nào thì cập nhật `ARCHITECTURE.md`/`CONSTRAINTS.md` gần nhất của module đó trong **cùng commit** nếu hành vi, giao diện hay ràng buộc đổi. `check` cảnh báo khi quên.
+6. Thiếu thông tin để quyết định (quy ước, lý do, ưu tiên) → ghi `TODO: cần xác nhận` và hỏi người dùng; không bịa.
