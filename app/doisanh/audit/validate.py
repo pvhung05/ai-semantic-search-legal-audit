@@ -46,3 +46,35 @@ def vi_tri_can_cu(u: dict) -> str:
     if u.get("diem"):
         parts.append(f"điểm {u['diem']}")
     return " ".join(parts)
+
+
+def tach_can_cu_goc(s: str | None, nd_sau_sua: str | None = None) -> str:
+    """Tach bo khoi prefix tac dong danh cho LLM ([CAN CU NAY ...] va 'Noi dung sau khi sua: ...') neu co.
+
+    Dung de dam bao dau ra trich_dan hien thi tren UI/DOCX chi chua nguyen van can cu phap ly goc.
+    """
+    if not s:
+        return ""
+    parts = s.split("\n---\n")
+    cleaned: list[str] = []
+    for p in parts:
+        t = p.strip()
+        if t.startswith("[CĂN CỨ NÀY") or t.startswith("[CAN CU NAY"):
+            idx = t.find("]")
+            if idx != -1:
+                rest = t[idx + 1:].strip()
+                if rest.lower().startswith("nội dung sau khi sửa:") or rest.lower().startswith("noi dung sau khi sua:"):
+                    after_label = rest.split(":", 1)[1].strip()
+                    if nd_sau_sua and after_label.startswith(nd_sau_sua.strip()):
+                        rest = after_label[len(nd_sau_sua.strip()):].strip()
+                    else:
+                        m = re.search(r'\n(?=(?:Điều|Khoản|\d+\.))', rest, flags=re.IGNORECASE)
+                        if m:
+                            rest = rest[m.start():].strip()
+                        else:
+                            lines = rest.splitlines()
+                            rest = "\n".join(lines[1:]).strip()
+                cleaned.append(rest)
+                continue
+        cleaned.append(t)
+    return "\n---\n".join(c for c in cleaned if c)

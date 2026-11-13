@@ -21,6 +21,7 @@ from app.doisanh.audit.docx_track import danh_dau_vi_pham
 from app.doisanh.audit.segment import DonViSegment, segment_du_thao
 from app.doisanh.audit.so_sanh import chay_tier2, chunk_embed_text, parse_vec
 from app.doisanh.audit.tier1 import chay_tier1
+from app.doisanh.audit.validate import tach_can_cu_goc
 from app.doisanh.db import repo_tai_lieu as rt
 from app.doisanh.ingestion.loader import doc_file
 from app.doisanh.ingestion.pipeline import nap_van_ban
@@ -320,7 +321,7 @@ def audit(req: AuditRequest) -> dict:
             "so_hieu": k.get("so_hieu", ""),
             "ten_van_ban": k.get("ten_van_ban", ""),
             "vi_tri": k.get("cc_vi_tri", ""),
-            "trich_dan": k.get("trich_dan", ""),        # phan CHUA sua (noi dung hien hanh)
+            "trich_dan": tach_can_cu_goc(k.get("trich_dan", "")),  # can cu goc (khong chua khoi LLM)
         }
         bsd = tac_dong_tom_tat(k.get("tac_dong"), ngay_iso)
         if bsd:                                          # phan SAU khi sua (neu co)

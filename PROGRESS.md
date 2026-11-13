@@ -37,6 +37,7 @@ Cập nhật cuối mỗi phiên làm việc (xem quy tắc trong [AGENTS.md](AG
 
 ## Nhật ký phiên
 
+- 13/11/2026 — branch `feat/ai-agent`: ẩn triệt để nội dung luật sửa đổi của LLM trên UI và DOCX: chỉ hiển thị căn cứ gốc và thông tin căn cứ tác động (nguồn sửa đổi/bãi bỏ); giữ khối nội dung sửa đổi cho LLM đối chiếu nội bộ; chuẩn hóa `tach_can_cu_goc` trong `validate.py`.
 - 13/11/2026 — branch `feat/ai-agent`: tinh gọn comment DOCX track-changes (`_noi_dung_comment`): tách sạch 2 khối (căn cứ gốc đã lọc tiền tố kỹ thuật và căn cứ tác động sửa đổi/bãi bỏ), phân cách bằng 1 dòng trống kèm ghi chú `⚠ [vị_trí] đã được sửa đổi bởi [nguồn] (hiệu lực [ngày]):`; bổ sung unit tests.
 - 13/11/2026 — branch `feat/ai-agent`: định dạng hiển thị căn cứ trên UI (`index.html`): tự động xuống dòng và thụt lề theo cấu trúc Chương, Điều, Khoản (1., 2...), Điểm (a, b...) và phân tách nhiều căn cứ (`---`).
 - 13/11/2026 — branch `feat/ai-agent`: nâng cấp Pass 2 gom toàn bộ các căn cứ vi phạm trong 1 lượt gọi duy nhất mỗi đơn vị dự thảo (`can_cu_vi_pham_ids`), LLM suy luận tổng thể khắc phục đồng thời các vi phạm, bổ sung unit test `test_chay_tier2_multiple_violating_bases_single_call`.

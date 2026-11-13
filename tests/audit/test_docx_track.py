@@ -110,9 +110,9 @@ def test_noi_dung_comment_co_tac_dong_sua_doi():
     assert "a) Tự mình khiếu nại." in khoi[0]
     assert "Nội dung sau khi sửa" not in khoi[0]
 
-    # Khoi 2: can cu tac dong
-    assert "⚠ Điều 12 đã được sửa đổi bởi Khoản 5, Điều 2 - Luật số 136/2025/QH15 (hiệu lực 2026-07-01):" in khoi[1]
-    assert "“h) Nhận văn bản trả lời về việc thụ lý...”." in khoi[1]
+    # Khoi 2: can cu tac dong (chi neu can cu sua doi, KHONG kem noi dung luat sau sua)
+    assert khoi[1] == "⚠ Điều 12 đã được sửa đổi bởi Khoản 5, Điều 2 - Luật số 136/2025/QH15 (hiệu lực 2026-07-01)."
+    assert "“h) Nhận văn bản trả lời" not in comment
 
 
 def test_noi_dung_comment_bai_bo():

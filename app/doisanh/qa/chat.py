@@ -135,7 +135,7 @@ def hoi_dap(
                 "ten_van_ban": u["ten_van_ban"],
                 "phan": u.get("phan"), "chuong": u.get("chuong"),
                 "so_dieu": u["so_dieu"], "so_khoan": u["so_khoan"], "diem": u["diem"],
-                "trich_dan": u["noi_dung"], "diem_rrf": round(u["diem_rrf"], 4),
+                "trich_dan": u.get("noi_dung_goc") or u["noi_dung"], "diem_rrf": round(u["diem_rrf"], 4),
                 "da_sua": tac_dong_tom_tat(u.get("tac_dong"), ngay_iso) if u.get("tac_dong") else None,
             }
             for i, u in enumerate(ung_vien, 1)

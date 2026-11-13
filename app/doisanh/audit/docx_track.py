@@ -22,6 +22,8 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import RGBColor
 
+from app.doisanh.audit.validate import tach_can_cu_goc
+
 _DO = RGBColor(0xC0, 0x00, 0x00)
 _DO_HEX = "C00000"
 _MIN_LEN = 8          # bo qua paragraph qua ngan khi so khop
@@ -34,41 +36,14 @@ def _norm(s: str | None) -> str:
     return re.sub(r"\s+", " ", (s or "")).strip()
 
 
-def _tach_can_cu_goc(s: str | None, nd_sau_sua: str | None = None) -> str:
-    """Tach bo khoi prefix tac dong [CAN CU NAY ...] va 'Noi dung sau khi sua: ...' neu co."""
-    if not s:
-        return ""
-    parts = s.split("\n---\n")
-    cleaned: list[str] = []
-    for p in parts:
-        t = p.strip()
-        if t.startswith("[CĂN CỨ NÀY") or t.startswith("[CAN CU NAY"):
-            idx = t.find("]")
-            if idx != -1:
-                rest = t[idx + 1:].strip()
-                if rest.lower().startswith("nội dung sau khi sửa:") or rest.lower().startswith("noi dung sau khi sua:"):
-                    after_label = rest.split(":", 1)[1].strip()
-                    if nd_sau_sua and after_label.startswith(nd_sau_sua.strip()):
-                        rest = after_label[len(nd_sau_sua.strip()):].strip()
-                    else:
-                        # Tim vi tri bat dau cua text quy pham goc (Dieu / Khoan / STT)
-                        m = re.search(r'\n(?=(?:Điều|Khoản|\d+\.))', rest, flags=re.IGNORECASE)
-                        if m:
-                            rest = rest[m.start():].strip()
-                        else:
-                            lines = rest.splitlines()
-                            rest = "\n".join(lines[1:]).strip()
-                cleaned.append(rest)
-                continue
-        cleaned.append(t)
-    return "\n---\n".join(c for c in cleaned if c)
+_tach_can_cu_goc = tach_can_cu_goc
 
 
 def _noi_dung_comment(vp: dict) -> str:
     cc = vp.get("can_cu_phap_ly") or {}
     blocks: list[str] = []
 
-    # 1. Can cu phap ly goc (da loc bo khoi header tac dong trung lap)
+    # 1. Can cu phap ly goc (chi hien can cu goc, da loc bo khoi header LLM neu co)
     dinh_danh = " – ".join(x for x in (cc.get("so_hieu"), cc.get("vi_tri")) if x)
     if cc.get("ten_van_ban"):
         dinh_danh = f"{dinh_danh} ({cc['ten_van_ban']})" if dinh_danh else cc["ten_van_ban"]
@@ -82,28 +57,17 @@ def _noi_dung_comment(vp: dict) -> str:
     if phan_goc:
         blocks.append("\n".join(phan_goc))
 
-    # 2. Can cu phap ly tac dong (neu co sua doi / bai bo)
+    # 2. Can cu phap ly tac dong (neu co) - KHONG hien thi noi dung luat LLM sua
     if cc.get("da_sua"):
         vt = cc.get("vi_tri") or "Căn cứ"
         nguon = cc.get("sua_boi", "")
         ngay = cc.get("ngay_hieu_luc", "")
         hau = f" (hiệu lực {ngay})" if ngay else ""
 
-        phan_tac_dong = []
         if cc.get("da_het_hieu_luc"):
-            phan_tac_dong.append(f"⚠ {vt} đã bị bãi bỏ bởi {nguon}{hau} — không còn hiệu lực.")
+            blocks.append(f"⚠ {vt} đã bị bãi bỏ bởi {nguon}{hau} — không còn hiệu lực.")
         else:
-            note_line = f"⚠ {vt} đã được sửa đổi bởi {nguon}{hau}"
-            nd_sau_sua = cc.get("noi_dung_sau_sua", "").strip()
-            if nd_sau_sua:
-                note_line += ":"
-                phan_tac_dong.append(note_line)
-                phan_tac_dong.append(nd_sau_sua)
-            else:
-                phan_tac_dong.append(note_line + ".")
-
-        if phan_tac_dong:
-            blocks.append("\n".join(phan_tac_dong))
+            blocks.append(f"⚠ {vt} đã được sửa đổi bởi {nguon}{hau}.")
 
     # Giua 2 phan cach nhau 1 dong trong (\n\n)
     return "\n\n".join(blocks) or "Vi phạm (AI LEGAL)."

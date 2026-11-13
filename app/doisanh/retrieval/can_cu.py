@@ -247,12 +247,13 @@ def nap_khoan_ung_vien(conn, chunk_ids: list[str], diem_rrf: dict[str, float],
     impacts = impacts_cho_nodes(conn, [u["khoan_id"] for u in out])
     ngay_iso = date.today().isoformat()
     for u in out:
+        u["noi_dung_goc"] = u["noi_dung"]  # giu nguyen van can cu goc cho UI/DOCX/nguoi dung
         td = impacts.get(u["khoan_id"])
         if td:
             u["tac_dong"] = td
             khoi = khoi_tac_dong(td, ngay_iso)
             if khoi:
-                u["noi_dung"] = khoi + "\n" + u["noi_dung"]  # prepend de khong bi cat khi [:N]
+                u["noi_dung"] = khoi + "\n" + u["noi_dung"]  # prepend cho LLM lay lam chuan
     out.sort(key=lambda x: x["_rank"])   # giu thu tu rerank
     for u in out:
         u.pop("_rank", None)

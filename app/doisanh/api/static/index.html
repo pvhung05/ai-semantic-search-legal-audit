@@ -720,12 +720,11 @@ function renderItem(k, tag) {
   const label = tag === 'VI_PHAM' ? 'VI PHẠM' : tag === 'HOP_LE' ? 'HỢP LỆ' : 'CHƯA XÁC ĐỊNH';
   const cc = k.can_cu_phap_ly || {};
   const cc_nguon = [cc.so_hieu, cc.vi_tri].filter(Boolean).join(' – ');
-  // Phan sau khi sua (neu co) nam trong can cu
+  // Căn cứ tác động đến căn cứ gốc (nếu có) - KHÔNG hiển thị nội dung luật LLM sửa
   const sau_sua_html = cc.da_sua ? (
     cc.da_het_hieu_luc
-      ? `<div class="de-xuat" style="color:var(--vp);">⚠ Đã bị bãi bỏ bởi ${esc(cc.sua_boi || '')}${cc.ngay_hieu_luc ? ` (hiệu lực ${esc(cc.ngay_hieu_luc)})` : ''} — không còn hiệu lực</div>`
-      : `<div class="row-label" style="color:var(--cx); margin-top:6px;">↳ Sau khi sửa (bởi ${esc(cc.sua_boi || '')}${cc.ngay_hieu_luc ? `, hiệu lực ${esc(cc.ngay_hieu_luc)}` : ''})</div>
-         <blockquote style="border-left-color:var(--cx);">${formatCanCu(cc.noi_dung_sau_sua || '')}</blockquote>`
+      ? `<div class="de-xuat" style="color:var(--vp); margin-top:6px;">⚠ ${esc(cc.vi_tri || 'Căn cứ')} đã bị bãi bỏ bởi ${esc(cc.sua_boi || '')}${cc.ngay_hieu_luc ? ` (hiệu lực ${esc(cc.ngay_hieu_luc)})` : ''} — không còn hiệu lực.</div>`
+      : `<div class="row-label" style="color:var(--cx); margin-top:6px;">⚠ ${esc(cc.vi_tri || 'Căn cứ')} đã được sửa đổi bởi ${esc(cc.sua_boi || '')}${cc.ngay_hieu_luc ? ` (hiệu lực ${esc(cc.ngay_hieu_luc)})` : ''}.</div>`
   ) : '';
   const cc_html = (cc.trich_dan || cc.da_sua) ? `
     <div class="row">
@@ -758,7 +757,17 @@ function esc(s) {
 // Xuong dong va thut le ro rang tai Chuong, Dieu, Khoan, Diem cho can cu phap ly
 function formatCanCu(s) {
   if (!s) return '';
-  let t = esc(s).trim();
+  // Loai bo khoi header danh rieng cho LLM neu co
+  let raw = String(s).trim();
+  if (raw.startsWith('[CĂN CỨ NÀY') || raw.startsWith('[CAN CU NAY')) {
+    const idx = raw.indexOf(']');
+    if (idx !== -1) {
+      let rest = raw.slice(idx + 1).trim();
+      const m = rest.match(/\n(?=(?:Điều|Khoản|\d+\.))/i);
+      raw = m ? rest.slice(m.index).trim() : rest;
+    }
+  }
+  let t = esc(raw).trim();
   t = t.replace(/\s*---\s*/g, '\n\n---\n\n');
   t = t.replace(/(?:^|\r?\n|\s+)(Chương\s+[IVXLCDM\d]+[.:\s]*)/giu, '\n\n$1\n');
   t = t.replace(/(?:^|\r?\n|\s+)(Điều\s+\d+[.:\s]*)/giu, '\n\n$1');
@@ -815,8 +824,7 @@ function renderCanCu(list) {
       const hau = s.ngay_hieu_luc ? ` (hiệu lực ${esc(s.ngay_hieu_luc)})` : '';
       td = s.da_het_hieu_luc
         ? `<div style="color:var(--vp); margin-top:4px;">⚠ Đã bị bãi bỏ bởi ${esc(s.nguon || '')}${hau} — không còn hiệu lực</div>`
-        : `<div style="color:var(--cx); margin-top:4px;">⚠ Đã bị sửa đổi bởi ${esc(s.nguon || '')}${hau}</div>`
-          + (s.noi_dung_sau_sua ? `<div class="cc-vt" style="color:var(--cx); margin-top:3px;">↳ Sau khi sửa</div><blockquote style="border-left-color:var(--cx);">${formatCanCu(s.noi_dung_sau_sua)}</blockquote>` : '');
+        : `<div style="color:var(--cx); margin-top:4px;">⚠ Đã bị sửa đổi bởi ${esc(s.nguon || '')}${hau}</div>`;
     }
     const mo = c.van_ban_id
       ? ` onclick="openDocPanel('${esc(c.van_ban_id)}', '${esc((c.so_hieu || '') + (c.ten_van_ban ? ' — ' + c.ten_van_ban : ''))}')" title="Mở văn bản ở panel trái" style="cursor:pointer;"`

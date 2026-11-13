@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.core.db.session import ket_noi
 from app.core.models.llm import goi_json
 from app.doisanh.audit.prompts import prompt_tier2_de_xuat, prompt_tier2_khoan
-from app.doisanh.audit.validate import cat_theo_pham_vi, la_snippet_hop_le, vi_tri_can_cu
+from app.doisanh.audit.validate import cat_theo_pham_vi, la_snippet_hop_le, tach_can_cu_goc, vi_tri_can_cu
 from app.doisanh.retrieval.can_cu import nap_khoan_ung_vien
 from app.doisanh.retrieval.hybrid import tim_hybrid, tim_hybrid_tu_text
 
@@ -244,7 +244,11 @@ def chay_tier2(don_vi_list: list, emb_by_id: dict, *, trich_yeu: str, ngay: date
             u_main = danh_sach_cc[0]
             so_hieu_str = ", ".join(dict.fromkeys(c.get("so_hieu", "") for c in danh_sach_cc if c.get("so_hieu"))) or u_main.get("so_hieu", "")
             ten_vb_str = "; ".join(dict.fromkeys(c.get("ten_van_ban", "") for c in danh_sach_cc if c.get("ten_van_ban"))) or u_main.get("ten_van_ban", "")
-            trich_dan_str = "\n---\n".join(c.get("noi_dung", "") for c in danh_sach_cc if c.get("noi_dung")) or cc.get("trich_dan") or u_main.get("noi_dung", "")
+            trich_dan_str = "\n---\n".join(
+                (c.get("noi_dung_goc") or c.get("noi_dung", ""))
+                for c in danh_sach_cc if (c.get("noi_dung_goc") or c.get("noi_dung"))
+            ) or cc.get("trich_dan") or u_main.get("noi_dung_goc") or u_main.get("noi_dung", "")
+            trich_dan_str = tach_can_cu_goc(trich_dan_str)
             vi_tri_str = ", ".join(dict.fromkeys(vi_tri_can_cu(c) for c in danh_sach_cc if vi_tri_can_cu(c))) or vi_tri_can_cu(u_main)
 
             tier2_kq.append({
