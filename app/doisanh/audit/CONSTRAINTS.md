@@ -5,8 +5,8 @@
 ## Hợp đồng đầu ra (không được phá)
 
 1. Luồng audit chạy cascade 2-pass:
-   - **Pass 1** (`prompt_tier2_khoan`, mặc định `think=False`): phân loại nhanh `trang_thai` (`vi_pham`, `hop_le`, `chua_xac_dinh`), `can_cu{khoan_id, trich_dan}`, `noi_dung_du_thao` (snippet sai), `giai_thich` sơ bộ, `cac_loi_them[]`, `tin_cay`.
-   - **Pass 2** (`prompt_tier2_de_xuat`, mặc định `think=True`): chỉ chạy cho các mục `VI_PHAM`, nhận đúng căn cứ bị vi phạm để suy luận sâu và sinh `de_xuat_sua` cùng `giai_thich` hoàn chỉnh.
+   - **Pass 1** (`prompt_tier2_khoan`, mặc định `think=False`): phân loại nhanh `trang_thai` (`vi_pham`, `hop_le`, `chua_xac_dinh`), `can_cu{khoan_id, trich_dan}`, `can_cu_vi_pham_ids[]`, `noi_dung_du_thao` (snippet sai), `giai_thich` sơ bộ, `tin_cay`.
+   - **Pass 2** (`prompt_tier2_de_xuat`, mặc định `think=True`): chỉ chạy cho các mục `VI_PHAM`, gom TẤT CẢ các căn cứ bị vi phạm trong 1 lượt gọi duy nhất mỗi đơn vị để suy luận sâu và sinh đề xuất sửa giải quyết đồng thời mọi vi phạm.
    - Đầu ra cuối cùng của `so_sanh.chay_tier2` phải giữ đầy đủ các khóa: `trang_thai`, `doan_du_thao`, `so_hieu`, `ten_van_ban`, `trich_dan`, `giai_thich`, `de_xuat_sua`, `tin_cay`, `tac_dong`, `cc_vi_tri`. Đổi khóa nào thì sửa cả UI (`api/static/index.html`) và `docx_track.py` trong cùng commit.
 2. Mọi verdict đi qua `_chuan_hoa_trang_thai`: chuỗi lạ → `CHUA_XAC_DINH`. Không thêm trạng thái thứ 4.
 3. `can_cu.khoan_id` phải thuộc tập ứng viên đã đưa vào prompt; không khớp thì code lấy ứng viên đầu (hành vi hiện tại, xem mục Biết là còn thiếu).
