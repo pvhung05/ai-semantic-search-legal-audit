@@ -1,9 +1,11 @@
 ---
 name: vn-law-parser
-description: Cách parse văn bản quy phạm pháp luật Việt Nam thành Chương/Mục/Điều/Khoản/Điểm, nhận diện lệnh sửa đổi-bổ sung-bãi bỏ, trích dẫn chiếu ("khoản 2 Điều 54 Luật này"), phần Căn cứ, ngày hiệu lực, tóm tắt Điều, và quy tắc test. Dùng skill này mỗi khi làm việc trong app/ingestion/ (parser.py, amend_parser.py, citation_parser.py, normalize.py, summarize.py, pipeline.py), audit/segment.py, khi viết regex cho văn bản luật, khi nạp file luật/nghị định/thông tư/dự thảo, hoặc khi người dùng hỏi về tách Điều, tách Khoản, dẫn chiếu, văn bản sửa đổi.
+description: Cách parse văn bản quy phạm pháp luật Việt Nam thành Chương/Mục/Điều/Khoản/Điểm, nhận diện lệnh sửa đổi-bổ sung-bãi bỏ, trích dẫn chiếu ("khoản 2 Điều 54 Luật này"), phần Căn cứ, ngày hiệu lực, tóm tắt Điều, và quy tắc test. Dùng skill này mỗi khi làm việc trong app/doisanh/ingestion/ (parser.py, amend_parser.py, citation_parser.py, normalize.py, summarize.py, pipeline.py, loader.py), app/doisanh/audit/segment.py, khi viết regex cho văn bản luật, khi nạp file luật/nghị định/thông tư/dự thảo, hoặc khi người dùng hỏi về tách Điều, tách Khoản, dẫn chiếu, văn bản sửa đổi.
 ---
 
 # Parse văn bản pháp luật Việt Nam
+
+> **Trạng thái:** kho luật hiện **không** dựng bằng parser này mà từ cây JSON crawl của vbpl.vn (`app/doisanh/public_loader.py`). Parser text còn dùng trong luồng chính ở: `loader.py`, `normalize.py`, `parser.py` (qua `audit/segment.py` để cắt **dự thảo**). `amend_parser.py`, `summarize.py`, `pipeline.py`, `sync.py` là di sản ghi vào schema v3 đã drop (`dieu_luat`/`khoan`); `citation_parser.py` chỉ dùng khi bật `ENABLE_TIER1`. Các mục về ghi DB bên dưới mô tả hệ cũ.
 
 Văn bản pháp luật có cấu trúc đều nhưng nhiều biến thể nhỏ (Điều 54a, "Điều 23." không tiêu đề, khoản lồng điểm, bảng biểu, trích ngoặc kép). Parser phải **không dừng khi gặp bất thường**: ghi WARNING kèm vị trí và đi tiếp; người dùng kiểm tra bằng số Điều kỳ vọng.
 
@@ -19,7 +21,7 @@ Văn bản pháp luật có cấu trúc đều nhưng nhiều biến thể nhỏ
 | `summarize.py` | `list[Dieu]` → `tom_tat` qua LLM, batch 20 | không chạy khi không có LLM (fallback tiêu đề + 120 ký tự) |
 | `pipeline.py` | lắp ráp: loader → normalize → parser → repo; nếu `la_van_ban_sua_doi` → amend_parser → `ghi_lenh` | không thi hành lệnh (đó là `sync.py`) |
 
-Mọi thứ trả về là pydantic trong `models/schemas.py`. Hàm parse là hàm thuần, test không cần DB.
+Mọi thứ trả về là pydantic trong `app/core/models/schemas.py` (segment trả dataclass riêng `DonViSegment`). Hàm parse là hàm thuần, test không cần DB.
 
 ## Regex cấu trúc (sau normalize, `re.MULTILINE`)
 
