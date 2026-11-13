@@ -30,8 +30,10 @@ python -m app.crawl.cli crawl-full --id <ID>       # cào 1 văn bản (metadata
 python -m app.crawl.cli fetch-tac-dong             # tác động sửa đổi
 python -m app.doisanh.cli build-cay --embed        # dựng node/chunk + embedding
 python -m app.doisanh.cli port-impacts             # SAU build-cay
-uvicorn app.doisanh.api.main:app --port 8010       # API + UI tại http://localhost:8010
+uvicorn app.doisanh.api.main:app --port 8010       # UI tại /, Swagger tại /docs, sống: /healthz
 ```
+
+Dùng: `POST /upload/draft` (file) → `tai_lieu_id` → `POST /audit` hoặc `/audit/docx`. Bộ ID văn bản tối thiểu để dựng kho demo (crawl toàn bộ vbpl rất lâu): TODO: cần xác nhận.
 
 Không có `--reload` thì phải khởi động lại uvicorn sau khi sửa code.
 
@@ -44,7 +46,7 @@ python tasks.py check      # lint (compileall) + pytest offline — phải xanh 
 python -m pytest tests/audit/test_validate.py -q   # một file; thêm ::ten_test cho một test
 ```
 
-- Test offline không cần DB/LLM. Test cần thật đánh dấu `@pytest.mark.llm` / `@pytest.mark.integration`, không chạy trong `check`.
+- Test offline không cần DB/LLM. Test cần thật đánh dấu `@pytest.mark.llm` / `@pytest.mark.integration` và **không tự skip** khi thiếu DB: chạy `pytest` trần sẽ treo ~30s rồi fail ở `test_repo_van_ban.py`. Luôn dùng `tasks.py` (đã lọc marker và đặt `DB_URL` giả nếu thiếu `.env`).
 - **Chưa có bộ eval cho luồng `/audit` hiện tại** — đổi prompt/retrieval phải kiểm tay trên dự thảo mẫu qua UI hoặc `POST /audit`, và ghi lại ca đã thử.
 - Soi retrieval: `python tests/debug_retrieval.py "câu hỏi"` (cần DB + embedding).
 

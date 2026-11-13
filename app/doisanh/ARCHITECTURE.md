@@ -44,7 +44,7 @@ Có hai đường audit. **Chỉ `routes_simple.py` → `audit/so_sanh.py` là �
 | Nạp luật từ file | `ingestion/pipeline.py`, `amend_parser.py`, `summarize.py`, `chunks.py`, `sync.py`, `db/repo_van_ban.py`, `scripts/ingest.py`, `scripts/sync.py`, `scripts/seed_demo.py`, `scripts/embed_all.py` |
 | Tắt bằng cờ (`ENABLE_TIER1=false`) | `audit/tier1.py`, `db/repo_hieu_luc.py`, `ingestion/citation_parser.py`, `ingestion/quan_he.py` |
 
-`routes_simple.py` vẫn **import** `tier1.chay_tier1` và `ingestion.pipeline.nap_van_ban` (`/upload/legal`), nên xóa các module này sẽ làm vỡ API. Kế hoạch port hay xóa: TODO: cần xác nhận.
+`routes_simple.py` vẫn **import** `tier1.chay_tier1` và `ingestion.pipeline.nap_van_ban` (`/upload/legal`), nên xóa các module này sẽ làm vỡ API. **`POST /upload/legal` gần như chắc chắn hỏng**: nó đi qua `repo_van_ban`, ghi vào `dieu_luat`/`khoan` đã bị drop (suy từ SQL, chưa chạy thử). Nạp luật vào kho chỉ qua crawl → `build-cay`. Kế hoạch port hay xóa: TODO: cần xác nhận.
 
 ## Công cụ debug
 

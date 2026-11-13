@@ -69,7 +69,7 @@ Lắp ráp (wiring) chỉ ở `api/`, `cli.py`, `scripts/*.py`. Không `global`,
 
 - Lỗi LLM hiện có: `LoiLLM`, `LoiParseJSON` trong `app/core/models/llm.py`. Chưa có module lỗi chung; khi cần lớp lỗi mới, đặt cạnh module ném nó. API map sang mã HTTP tại `api/`, không raise `HTTPException` trong nghiệp vụ.
 - Parser gặp bất thường: **ghi WARNING kèm vị trí, đi tiếp**, không raise (quy tắc riêng của parse luật).
-- `structlog` với key cố định: `van_ban_id`, `dieu_id`, `phien_id`, `buoc`, `so_goi_llm`. Log ở ranh giới (bắt đầu/kết thúc bước, lỗi), không log từng dòng vòng lặp.
+- Log bằng `logging` chuẩn (`logger = logging.getLogger(__name__)`); `structlog` có trong `pyproject.toml` nhưng code không dùng. Kèm id liên quan (`don_vi`, `van_ban_id`) trong message. Log ở ranh giới (bắt đầu/kết thúc bước, lỗi), không log từng dòng vòng lặp.
 - Không `print` trong `app/`.
 
 ## Test

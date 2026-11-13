@@ -12,6 +12,6 @@
 **Quyết định thiết kế**
 - **Hai đường LLM, chọn theo `is_local`** (`Settings.cau_hinh_llm`). Mỗi request API có thể ghi đè `is_local` và `think`.
   - `is_local=True` (**mặc định, Qwen3:14b qua Ollama — model chính của dự án**): gọi endpoint *native* `/api/chat`, không phải `/v1`, vì chỉ native mới tắt được thinking thật (`think:false`) và nhận `options.num_ctx`.
-  - `is_local=False`: Gemini qua endpoint OpenAI-compatible `/chat/completions`. (Comment trong `config.py` còn ghi "Claude" — đã lỗi thời.)
+  - `is_local=False`: Gemini qua endpoint OpenAI-compatible `/chat/completions`. (Comment trong `config.py` và mô tả field `is_local` trong `routes_simple.py` còn ghi "Claude" — đã lỗi thời.)
 - Không ORM, không framework RAG: SQL tay qua psycopg3, model gọi qua HTTP (httpx + tenacity). Lý do chọn: TODO: cần xác nhận.
 - `Settings()` khởi tạo ngay khi import và **bắt buộc có `DB_URL`** — thiếu thì mọi import `app.core.config` đều lỗi, kể cả khi chạy test offline (`tasks.py test` tự đặt giá trị giả nếu thiếu).
