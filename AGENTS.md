@@ -38,7 +38,9 @@ Không có `--reload` thì phải khởi động lại uvicorn sau khi sửa cod
 ## Cách xác minh
 
 ```bash
-python tasks.py check      # lint (compileall) + pytest offline — phải xanh trước khi commit
+python tasks.py check      # lint (compileall) + pytest offline — phải xanh trước khi commit;
+                           # in thêm "WARN docs" (link hỏng / code đổi mà tài liệu module không đổi) — không chặn,
+                           # so với điểm rẽ từ main (đổi bằng biến DOCS_BASE)
 python -m pytest tests/audit/test_validate.py -q   # một file; thêm ::ten_test cho một test
 ```
 
