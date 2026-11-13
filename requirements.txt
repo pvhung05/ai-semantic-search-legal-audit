@@ -9,20 +9,34 @@
 #
 # Ngoai ra can: PostgreSQL 16 + extension pgvector; Ollama (LLM/embed local) hoac API cloud.
 
-psycopg[binary,pool]==3.2.9
+# Database (PostgreSQL 16 + pgvector)
+psycopg[binary,pool]==3.3.6
 pgvector==0.4.1
-pydantic==2.13.4
-pydantic-settings==2.10.1
-fastapi==0.142.2
-uvicorn[standard]==0.35.0
-python-multipart==0.0.20
+
+# Configuration & Validation (Pydantic & .env)
+pydantic==2.14.1
+pydantic-settings==2.15.0
+python-dotenv==1.2.4
+
+# Web API & Server
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
+
+# Document Processing & Parsing (PDF, DOCX, HTML)
 python-docx==1.2.0
-PyMuPDF==1.28.0
+PyMuPDF==1.28.2
 beautifulsoup4==4.15.0
+lxml==6.1.3
+
+# Network, HTTP & LLM Resiliency
 httpx==0.28.1
 requests==2.34.2
-tenacity==9.1.4
+tenacity==9.2.1
+
+# Utilities & Matching
 rapidfuzz==3.14.5
+PyYAML==6.0.3
 rich==15.0.0
 
 # --- Dev/test (tuy chon, bo comment neu can chay pytest) ---
