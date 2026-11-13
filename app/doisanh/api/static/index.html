@@ -152,6 +152,7 @@
     margin: 4px 0; padding: 8px 12px; background: var(--bg);
     border-left: 3px solid var(--border); border-radius: 0 4px 4px 0;
     font-size: 13px; color: var(--text); line-height: 1.5;
+    white-space: pre-wrap;
   }
   .item .giai-thich { color: var(--text); font-style: italic; margin-top: 6px; }
   .item .de-xuat { color: var(--primary); margin-top: 6px; }
@@ -222,7 +223,7 @@
   .chat-cc .cc-item:first-of-type { border-top: none; margin-top: 6px; }
   .chat-cc .cc-vt { font-weight: 600; color: var(--primary); }
   .chat-cc blockquote { margin: 4px 0 0; padding-left: 10px; border-left: 3px solid var(--border);
-                        color: var(--muted); }
+                        color: var(--muted); white-space: pre-wrap; }
   .chat-input { display: flex; gap: 8px; }
   .modal.chat .chat-input textarea { flex: 1; min-height: 44px; max-height: 120px; resize: vertical;
                                      font-family: inherit; margin: 0; }
@@ -724,12 +725,12 @@ function renderItem(k, tag) {
     cc.da_het_hieu_luc
       ? `<div class="de-xuat" style="color:var(--vp);">⚠ Đã bị bãi bỏ bởi ${esc(cc.sua_boi || '')}${cc.ngay_hieu_luc ? ` (hiệu lực ${esc(cc.ngay_hieu_luc)})` : ''} — không còn hiệu lực</div>`
       : `<div class="row-label" style="color:var(--cx); margin-top:6px;">↳ Sau khi sửa (bởi ${esc(cc.sua_boi || '')}${cc.ngay_hieu_luc ? `, hiệu lực ${esc(cc.ngay_hieu_luc)}` : ''})</div>
-         <blockquote style="border-left-color:var(--cx);">${esc(cc.noi_dung_sau_sua || '')}</blockquote>`
+         <blockquote style="border-left-color:var(--cx);">${formatCanCu(cc.noi_dung_sau_sua || '')}</blockquote>`
   ) : '';
   const cc_html = (cc.trich_dan || cc.da_sua) ? `
     <div class="row">
       <div class="row-label">Căn cứ pháp lý${cc_nguon ? ` (${esc(cc_nguon)}${cc.ten_van_ban ? ' · ' + esc(cc.ten_van_ban) : ''})` : ''}</div>
-      ${cc.trich_dan ? `<blockquote>${esc(cc.trich_dan)}</blockquote>` : ''}
+      ${cc.trich_dan ? `<blockquote>${formatCanCu(cc.trich_dan)}</blockquote>` : ''}
       ${sau_sua_html}
     </div>` : '';
   return `<div class="item ${cls}">
@@ -752,6 +753,22 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   }[c]));
+}
+
+// Xuong dong va thut le ro rang tai Chuong, Dieu, Khoan, Diem cho can cu phap ly
+function formatCanCu(s) {
+  if (!s) return '';
+  let t = esc(s).trim();
+  t = t.replace(/\s*---\s*/g, '\n\n---\n\n');
+  t = t.replace(/(?:^|\r?\n|\s+)(Chương\s+[IVXLCDM\d]+[.:\s]*)/giu, '\n\n$1\n');
+  t = t.replace(/(?:^|\r?\n|\s+)(Điều\s+\d+[.:\s]*)/giu, '\n\n$1');
+  t = t.replace(/(?:^|\r?\n|\s+)(Khoản\s+\d+[.:\s]*)/giu, '\n\n$1');
+  t = t.replace(/(?:^|\s)(Điều\s+\d+\.)|(?:\r?\n|\s+)(\d{1,2}\.\s+)(?=[A-ZÀ-Ỹa-zà-ỹ])/gu, (m, dieu, khoan) => {
+    return dieu ? m : ('\n\n' + khoan);
+  });
+  t = t.replace(/(?:^|\r?\n|\s+)(Điểm\s+[a-zđ][.:\)\s]*)/giu, '\n   $1');
+  t = t.replace(/(?:^|\r?\n|\s+)([a-zđ]\)\s+)/giu, '\n   $1');
+  return t.replace(/\n{3,}/g, '\n\n').trim();
 }
 
 // Markdown rut gon cho cau tra loi LLM: esc truoc, roi **dam**, *nghieng*, `code`, gach dau dong, xuong dong.
@@ -799,14 +816,14 @@ function renderCanCu(list) {
       td = s.da_het_hieu_luc
         ? `<div style="color:var(--vp); margin-top:4px;">⚠ Đã bị bãi bỏ bởi ${esc(s.nguon || '')}${hau} — không còn hiệu lực</div>`
         : `<div style="color:var(--cx); margin-top:4px;">⚠ Đã bị sửa đổi bởi ${esc(s.nguon || '')}${hau}</div>`
-          + (s.noi_dung_sau_sua ? `<div class="cc-vt" style="color:var(--cx); margin-top:3px;">↳ Sau khi sửa</div><blockquote style="border-left-color:var(--cx);">${esc(s.noi_dung_sau_sua)}</blockquote>` : '');
+          + (s.noi_dung_sau_sua ? `<div class="cc-vt" style="color:var(--cx); margin-top:3px;">↳ Sau khi sửa</div><blockquote style="border-left-color:var(--cx);">${formatCanCu(s.noi_dung_sau_sua)}</blockquote>` : '');
     }
     const mo = c.van_ban_id
       ? ` onclick="openDocPanel('${esc(c.van_ban_id)}', '${esc((c.so_hieu || '') + (c.ten_van_ban ? ' — ' + c.ten_van_ban : ''))}')" title="Mở văn bản ở panel trái" style="cursor:pointer;"`
       : '';
     return `<div class="cc-item"${mo}><span class="cc-vt">[${c.so_tt}] ${esc(vt)}</span>`
       + (c.ten_van_ban ? ` · <span style="color:var(--muted)">${esc(c.ten_van_ban)}</span>` : '')
-      + (c.trich_dan ? `<blockquote>${esc(c.trich_dan)}</blockquote>` : '')
+      + (c.trich_dan ? `<blockquote>${formatCanCu(c.trich_dan)}</blockquote>` : '')
       + td
       + `</div>`;
   }).join('');
