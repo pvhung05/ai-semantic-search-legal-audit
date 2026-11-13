@@ -39,4 +39,5 @@ Cập nhật cuối mỗi phiên làm việc (xem quy tắc trong [AGENTS.md](AG
 ## Nhật ký phiên
 
 - 13/11/2026 — branch `feat/ai-agent`: rà soát toàn bộ import và dependency trong `@app`, hoàn thiện `requirements.txt` và `pyproject.toml` (bổ sung `lxml`, `python-dotenv`, `PyYAML`; đồng bộ version pin theo `.venv` chuẩn).
-- 13/11/2026 — branch `docs/agent-harness`: thêm tài liệu agent, `tasks.py`, kiểm tra tài liệu; cập nhật skill `.claude/skills/` theo cấu trúc hiện tại. Không sửa code ứng dụng.
+- 13/11/2026 — branch `docs/agent-harness`: thêm tài liệu agent, `tasks.py`, kiểm tra tài liệu; cập nhật skill `.claude/skills/` theo cấu trúc hiện tại.
+- 13/11/2026 — sửa crawl `doc_info` hỏng do vbpl đổi format (`</html>1:` → `</body>1:`), commit `8d5f10d`. 72 mục `crawl_queue` lỗi `Extra data…` cần reset `so_lan_thu` để crawl lại (mục đã đủ 3 lần thử sẽ không được `take_pending` lấy lại).
