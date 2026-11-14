@@ -6,9 +6,9 @@ Tài liệu này cung cấp hướng dẫn tích hợp chi tiết toàn bộ cá
 
 ## 1. Thông tin chung
 
-* **Base URL mặc định**: `http://localhost:8010`
-* **Swagger UI / OpenAPI Doc**: `http://localhost:8010/docs`
-* **Giao diện Web demo (SPA)**: `http://localhost:8010/`
+* **Base URL mặc định**: `http://{{base_url}}:{{port}}`
+* **Swagger UI / OpenAPI Doc**: `http://{{base_url}}:{{port}}/docs`
+* **Giao diện Web demo (SPA)**: `http://{{base_url}}:{{port}}/`
 * **Chuẩn dữ liệu**:
   * Mã hóa ký tự: `UTF-8`
   * Dữ liệu gửi/nhận: `application/json` (trừ các endpoint tải file dùng `multipart/form-data`)
@@ -29,7 +29,7 @@ sequenceDiagram
     actor Client as Ứng dụng Client
     participant API as audit-legal Backend
     participant Storage as File & Vector Store
-    participant LLM as LLM Engine (Qwen/Ollama)
+    participant LLM as LLM Engine
 
     Client->>API: POST /upload/draft (Gửi file DOCX / PDF / TXT)
     API->>Storage: Tách đoạn, phân tích cấu trúc Điều/Khoản, nhúng vector
@@ -67,10 +67,10 @@ sequenceDiagram
 | `POST` | `/audit` | Đối soát dự thảo văn bản với kho pháp luật (trả JSON) |
 | `POST` | `/audit/docx` | Đối soát dự thảo và tự động tạo file Word Track Changes |
 | `GET` | `/audit/docx/{tai_lieu_id}` | Tải file Word đã gắn Track Changes |
-| `POST` | `/ask` | Trợ lý hỏi đáp pháp luật có trích dẫn điều khoản và điểm RRF |
+| `POST` | `/ask` | Trợ lý hỏi đáp pháp luật có trích dẫn điều khoản |
 | `GET` | `/api/legal` | Tra cứu danh sách văn bản luật trong kho (phân trang, lọc, tìm kiếm) |
 | `GET` | `/api/legal/loai` | Lấy danh sách các loại văn bản có trong kho CSDL |
-| `GET` | `/legal/{van_ban_id}/html` | Xem toàn văn HTML văn bản quy phạm pháp luật đã crawl |
+| `GET` | `/legal/{van_ban_id}/html` | Xem toàn văn HTML |
 | `DELETE` | `/draft/{tai_lieu_id}` | Xóa một tài liệu dự thảo và file đính kèm |
 | `DELETE` | `/draft` | Xóa toàn bộ dữ liệu dự thảo thử nghiệm |
 
@@ -90,7 +90,7 @@ Kiểm tra dịch vụ backend có đang hoạt động bình thường không. 
   * Header: Không yêu cầu
 * **Ví dụ cURL**:
   ```bash
-  curl -X GET "http://localhost:8010/healthz"
+  curl -X GET "http://{{base_url}}:{{port}}/healthz"
   ```
 * **Response mẫu (200 OK)**:
   ```json
@@ -115,7 +115,7 @@ Tải lên file dự thảo văn bản. Hệ thống tự động bóc tách n�
     * `file` (bắt buộc): Tệp nhị phân hỗ trợ định dạng `.docx`, `.pdf`, `.txt`.
 * **Ví dụ cURL**:
   ```bash
-  curl -X POST "http://localhost:8010/upload/draft" \
+  curl -X POST "http://{{base_url}}:{{port}}/upload/draft" \
     -F "file=@/duong/dan/du_thao_quy_dinh_tiep_dan.docx"
   ```
 * **Response mẫu (200 OK)**:
@@ -172,7 +172,7 @@ Thực hiện đối soát toàn bộ các phân đoạn của dự thảo văn 
     * `think` (boolean, tùy chọn, mặc định `null`): Cho phép bật/tắt luồng suy luận thinking của LLM local. `null` = lấy theo giá trị cấu hình server (`LLM_THINK` trong file `.env`); `true`/`false` = bật hoặc tắt cờ suy luận thinking.
 * **Ví dụ cURL**:
   ```bash
-  curl -X POST "http://localhost:8010/audit" \
+  curl -X POST "http://{{base_url}}:{{port}}/audit" \
     -H "Content-Type: application/json" \
     -d '{
       "tai_lieu_id": "8c593678-a28a-49f3-a15d-045330e70390",
@@ -255,7 +255,7 @@ Thực hiện đối soát toàn bộ như `/audit`, đồng thời xử lý tr�
   * Request Body: Hoàn toàn giống `POST /audit`.
 * **Ví dụ cURL**:
   ```bash
-  curl -X POST "http://localhost:8010/audit/docx" \
+  curl -X POST "http://{{base_url}}:{{port}}/audit/docx" \
     -H "Content-Type: application/json" \
     -d '{
       "tai_lieu_id": "8c593678-a28a-49f3-a15d-045330e70390",
@@ -291,7 +291,7 @@ Tải file Word (.docx) đã được xử lý Track Changes về máy người 
   * Header: Không yêu cầu
 * **Ví dụ cURL**:
   ```bash
-  curl -X GET "http://localhost:8010/audit/docx/8c593678-a28a-49f3-a15d-045330e70390" \
+  curl -X GET "http://{{base_url}}:{{port}}/audit/docx/8c593678-a28a-49f3-a15d-045330e70390" \
     --output "ket_qua_track_changes.docx"
   ```
 * **Response mẫu (200 OK)**:
@@ -309,7 +309,7 @@ Xóa một tài liệu dự thảo cụ thể khỏi cơ sở dữ liệu (casca
   * URL: `/draft/{tai_lieu_id}`
 * **Ví dụ cURL**:
   ```bash
-  curl -X DELETE "http://localhost:8010/draft/8c593678-a28a-49f3-a15d-045330e70390"
+  curl -X DELETE "http://{{base_url}}:{{port}}/draft/8c593678-a28a-49f3-a15d-045330e70390"
   ```
 * **Response mẫu (200 OK)**:
   ```json
@@ -330,7 +330,7 @@ Dọn dẹp và làm rỗng toàn bộ dữ liệu các dự thảo trong kho r�
   * URL: `/draft`
 * **Ví dụ cURL**:
   ```bash
-  curl -X DELETE "http://localhost:8010/draft"
+  curl -X DELETE "http://{{base_url}}:{{port}}/draft"
   ```
 * **Response mẫu (200 OK)**:
   ```json
@@ -359,7 +359,7 @@ Cho phép đặt câu hỏi pháp lý và nhận câu trả lời tổng hợp k
     * `lich_su` (array, tùy chọn): Danh sách các câu hỏi - đáp trước đó để duy trì ngữ cảnh trò chuyện. Mỗi phần tử là object `{"hoi": "...", "dap": "..."}`.
 * **Ví dụ cURL**:
   ```bash
-  curl -X POST "http://localhost:8010/ask" \
+  curl -X POST "http://{{base_url}}:{{port}}/ask" \
     -H "Content-Type: application/json" \
     -d '{
       "cau_hoi": "Người khiếu nại có những quyền gì theo Luật Khiếu nại?",
@@ -421,7 +421,7 @@ Tra cứu và phân trang danh mục các văn bản quy phạm pháp luật có
     * `offset` (int, tùy chọn, mặc định `0`): Vị trí bắt đầu lấy bản ghi (dùng cho phân trang).
 * **Ví dụ cURL**:
   ```bash
-  curl -X GET "http://localhost:8010/api/legal?q=ti%E1%BA%BFp%20c%C3%B4ng%20d%C3%A2n&loai=Lu%E1%BA%ADt&limit=10&offset=0"
+  curl -X GET "http://{{base_url}}:{{port}}/api/legal?q=ti%E1%BA%BFp%20c%C3%B4ng%20d%C3%A2n&loai=Lu%E1%BA%ADt&limit=10&offset=0"
   ```
 * **Response mẫu (200 OK)**:
   ```json
@@ -452,7 +452,7 @@ Lấy danh sách các loại văn bản quy phạm pháp luật thực tế đan
   * URL: `/api/legal/loai`
 * **Ví dụ cURL**:
   ```bash
-  curl -X GET "http://localhost:8010/api/legal/loai"
+  curl -X GET "http://{{base_url}}:{{port}}/api/legal/loai"
   ```
 * **Response mẫu (200 OK)**:
   ```json
@@ -479,7 +479,7 @@ Xem trực tiếp toàn văn HTML của văn bản pháp luật được hệ th
   * Path Parameter: `van_ban_id` (string, ví dụ `14560`).
 * **Ví dụ cURL**:
   ```bash
-  curl -X GET "http://localhost:8010/legal/14560/html"
+  curl -X GET "http://{{base_url}}:{{port}}/legal/14560/html"
   ```
 * **Response mẫu (200 OK)**:
   * Content-Type: `text/html; charset=utf-8`
@@ -516,7 +516,7 @@ Hệ thống áp dụng chuẩn mã phản hồi HTTP tiêu chuẩn:
 import time
 import requests
 
-BASE_URL = "http://localhost:8010"
+BASE_URL = "http://{{base_url}}:{{port}}"
 
 # 1. Tải lên file dự thảo
 print("1. Đang tải lên dự thảo...")
@@ -559,7 +559,7 @@ print("-> Đã xóa dữ liệu dự thảo tạm.")
 ### Ví dụ bằng JavaScript / TypeScript (Node.js hoặc Trình duyệt)
 
 ```javascript
-const BASE_URL = "http://localhost:8010";
+const BASE_URL = "http://{{base_url}}:{{port}}";
 
 // Hỏi đáp pháp lý trực tiếp
 async function hoiDapPhapLuat(cauHoi) {
