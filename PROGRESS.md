@@ -38,4 +38,5 @@ Cập nhật cuối mỗi phiên làm việc (xem quy tắc trong [AGENTS.md](AG
 
 ## Nhật ký phiên
 
+- 14/11/2026 — branch `main`: tạo tài liệu tích hợp API chi tiết ([API_INTEGRATION.md](API_INTEGRATION.md)) kèm cURL và response mẫu cho toàn bộ endpoint (trừ `/upload/legal`).
 - 13/11/2026 — branch `docs/agent-harness`: thêm tài liệu agent, `tasks.py`, kiểm tra tài liệu; cập nhật skill `.claude/skills/` theo cấu trúc hiện tại. Không sửa code ứng dụng.
