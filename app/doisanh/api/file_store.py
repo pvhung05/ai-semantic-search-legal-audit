@@ -1,6 +1,7 @@
 """Luu/doc file du thao goc va file track-change tren dia. Tach khoi route."""
 from __future__ import annotations
 
+import re
 import shutil
 from pathlib import Path
 
@@ -10,9 +11,18 @@ DRAFT_DIR = settings.STORAGE_PATH / "drafts"               # ban goc du thao (gi
 OUTPUT_DIR = settings.STORAGE_PATH.parent / "track_changes"  # = data/track_changes: ban da track-change
 HAU_TO_TC = "_track_changes"
 
+RE_ID_HOP_LE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def la_id_hop_le(tai_lieu_id: str) -> bool:
+    """Kiem tra tai_lieu_id hop le (tranh path traversal ../..)."""
+    return bool(tai_lieu_id and RE_ID_HOP_LE.match(tai_lieu_id))
+
 
 def luu_file_goc(tai_lieu_id: str, src: Path, ten_goc: str | None) -> None:
     """Luu ban goc giu nguyen TEN FILE upload (de dat ten ban track-change sau)."""
+    if not la_id_hop_le(tai_lieu_id):
+        raise ValueError(f"tai_lieu_id khong hop le: {tai_lieu_id}")
     folder = DRAFT_DIR / tai_lieu_id
     folder.mkdir(parents=True, exist_ok=True)
     ten = Path(ten_goc or f"du_thao{src.suffix}").name
@@ -25,6 +35,8 @@ def file_goc(tai_lieu_id: str) -> Path | None:
     Output track-change nam o OUTPUT_DIR (thu muc khac), nen o day khong can
     loai tru *_track_changes: cu tra file dau tien tim thay.
     """
+    if not la_id_hop_le(tai_lieu_id):
+        return None
     folder = DRAFT_DIR / tai_lieu_id
     if not folder.is_dir():
         return None
@@ -36,6 +48,8 @@ def file_goc(tai_lieu_id: str) -> Path | None:
 
 def duong_dan_output(tai_lieu_id: str, src_stem: str) -> Path:
     """Duong dan file track-change '<ten_goc>_track_changes.docx' (tao thu muc neu thieu)."""
+    if not la_id_hop_le(tai_lieu_id):
+        raise ValueError(f"tai_lieu_id khong hop le: {tai_lieu_id}")
     out_dir = OUTPUT_DIR / tai_lieu_id
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir / f"{src_stem}{HAU_TO_TC}.docx"
@@ -43,6 +57,8 @@ def duong_dan_output(tai_lieu_id: str, src_stem: str) -> Path:
 
 def tim_file_track_change(tai_lieu_id: str) -> Path | None:
     """File track-change da tao o POST /audit/docx (data/track_changes)."""
+    if not la_id_hop_le(tai_lieu_id):
+        return None
     folder = OUTPUT_DIR / tai_lieu_id
     hits = sorted(folder.glob(f"*{HAU_TO_TC}.docx")) if folder.is_dir() else []
     return hits[0] if hits else None
@@ -54,5 +70,7 @@ def xoa_tat_ca_file() -> None:
 
 
 def xoa_file(tai_lieu_id: str) -> None:
+    if not la_id_hop_le(tai_lieu_id):
+        return
     shutil.rmtree(DRAFT_DIR / tai_lieu_id, ignore_errors=True)
     shutil.rmtree(OUTPUT_DIR / tai_lieu_id, ignore_errors=True)

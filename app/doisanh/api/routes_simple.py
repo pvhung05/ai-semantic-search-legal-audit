@@ -160,29 +160,20 @@ def xem_html(van_ban_id: str) -> HTMLResponse:
     return HTMLResponse(khung)
 
 
+MAX_UPLOAD_SIZE = 25 * 1024 * 1024  # 25 MB
+
+
 # ============================================================
-# 2b) /upload/legal
+# 2b) /upload/legal - khong con ho tro tren schema cay (kho luat nap qua crawler)
 # ============================================================
 @router.post("/upload/legal")
 async def upload_legal(
     file: UploadFile = File(..., description="PDF/DOCX/TXT cua van ban luat"),
     meta_json: str = Form(..., description="JSON VanBanMeta: id, so_hieu, ten, loai, cap, ..."),
 ) -> dict:
-    try:
-        meta = VanBanMeta(**json.loads(meta_json))
-    except Exception as exc:
-        raise HTTPException(400, f"meta_json khong hop le: {exc}") from exc
-
-    with tempfile.NamedTemporaryFile(
-        delete=False, suffix=Path(file.filename or "x").suffix,
-    ) as tmp:
-        tmp.write(await file.read())
-        tmp_path = Path(tmp.name)
-    try:
-        kq = nap_van_ban(tmp_path, meta, hieu_luc_tu=meta.ngay_hieu_luc)
-        return {"van_ban_id": meta.id, **kq}
-    finally:
-        tmp_path.unlink(missing_ok=True)
+    raise HTTPException(
+        501, "Chức năng nạp văn bản thủ công chưa hỗ trợ trên schema cây. Kho luật được nạp tự động qua crawler.",
+    )
 
 
 # ============================================================
@@ -193,10 +184,14 @@ async def upload_draft(
     file: UploadFile = File(..., description="PDF/DOCX/TXT du thao"),
 ) -> dict:
     """Chi can file. Tu dong segment thanh Khoan/Diem/doan, luu DB, tra ve chunk."""
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(413, f"Dung lượng file vượt quá giới hạn cho phép ({MAX_UPLOAD_SIZE // (1024 * 1024)}MB)")
+
     with tempfile.NamedTemporaryFile(
         delete=False, suffix=Path(file.filename or "x").suffix,
     ) as tmp:
-        tmp.write(await file.read())
+        tmp.write(content)
         tmp_path = Path(tmp.name)
     try:
         try:
@@ -209,8 +204,6 @@ async def upload_draft(
         with ket_noi() as conn:
             rt.luu_du_thao(conn, tai_lieu_id, text, seg)
             conn.commit()
-            # Sinh embedding cho tung don vi du thao (idempotent, commit theo batch).
-            rt.nhung_du_thao_thieu(conn, tai_lieu_id)
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -236,7 +229,7 @@ async def upload_draft(
 # 4) /audit - khong can VB me. Moi chunk: hybrid search toan DB -> LLM so sanh.
 # ============================================================
 class AuditRequest(BaseModel):
-    tai_lieu_id: str
+    tai_lieu_id: str = Field(..., pattern=r"^[A-Za-z0-9_-]+$", description="ID tai lieu du thao hop le")
     top_k: int = Field(8, ge=1, le=10,
                        description="(Khong con dung) so ung vien gui LLM nay do RERANK_TOP_N quyet dinh")
     van_ban_me_ids: Optional[list[str]] = Field(
@@ -386,6 +379,8 @@ def xoa_tat_ca_draft() -> dict:
 @router.delete("/draft/{tai_lieu_id}")
 def xoa_draft(tai_lieu_id: str) -> dict:
     """Xoa 1 du thao (du_thao + du_thao_node cascade) + file goc/track-change da luu."""
+    if not file_store.la_id_hop_le(tai_lieu_id):
+        raise HTTPException(400, f"tai_lieu_id '{tai_lieu_id}' khong hop le")
     with ket_noi() as conn:
         n = rt.xoa_du_thao(conn, tai_lieu_id)
         conn.commit()
@@ -398,6 +393,8 @@ def xoa_draft(tai_lieu_id: str) -> dict:
 @router.get("/audit/docx/{tai_lieu_id}")
 def tai_file_track_changes(tai_lieu_id: str) -> FileResponse:
     """Tai file '<ten_goc>_track_changes.docx' da tao o POST /audit/docx (data/track_changes)."""
+    if not file_store.la_id_hop_le(tai_lieu_id):
+        raise HTTPException(400, f"tai_lieu_id '{tai_lieu_id}' khong hop le")
     f = file_store.tim_file_track_change(tai_lieu_id)
     if f is None:
         raise HTTPException(404, "Chua co file track-changes. Goi POST /audit/docx truoc.")
