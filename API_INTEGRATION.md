@@ -15,7 +15,7 @@ Tài liệu này cung cấp hướng dẫn tích hợp chi tiết toàn bộ cá
   * Cơ chế bảo mật & CORS: Hệ thống đã bật CORS (`Access-Control-Allow-Origin: *`) cho phép tích hợp trực tiếp từ Web Client/Frontend.
 * **Thời gian xử lý (Timeout khuyến nghị)**:
   * Các API tra cứu dữ liệu (`/ask`, `/api/legal`, `/healthz`): timeout khuyến nghị **10s – 30s**.
-  * Các API đối soát chuyên sâu (`/audit`, `/audit/docx`): Do chạy mô hình ngôn ngữ lớn (LLM 2-Pass suy luận và truy hồi vector phân đoạn), thời gian xử lý phụ thuộc vào độ dài file dự thảo. Khuyến nghị đặt HTTP Client timeout từ **60s – 120s**.
+  * Các API đối soát chuyên sâu (`/audit`, `/audit/docx`): Do chạy mô hình ngôn ngữ lớn (truy hồi vector kết hợp BM25 và gọi LLM phân tích từng đơn vị dự thảo), thời gian xử lý phụ thuộc vào độ dài file dự thảo. Khuyến nghị đặt HTTP Client timeout từ **60s – 120s**.
 
 ---
 
@@ -37,12 +37,12 @@ sequenceDiagram
     
     alt Đối soát nhận kết quả JSON
         Client->>API: POST /audit (tai_lieu_id)
-        API->>Storage: Hybrid Search top-k căn cứ pháp lý
-        API->>LLM: Pass 1 phân loại + Pass 2 đề xuất sửa
+        API->>Storage: Hybrid Search top-k căn cứ pháp lý cho từng đơn vị
+        API->>LLM: So sánh, đối chiếu quy định pháp lý và đề xuất sửa
         API-->>Client: Trả về JSON (VI_PHAM, HOP_LE, CHUA_XAC_DINH)
     else Đối soát và xuất file Word Track-Changes
         Client->>API: POST /audit/docx (tai_lieu_id)
-        API->>LLM: Đối soát và tạo file Word có Track Changes thật
+        API->>LLM: Đối soát và tạo file Word có Track Changes / đánh dấu vi phạm
         API-->>Client: Trả về JSON kết quả + link tải file
         Client->>API: GET /audit/docx/{tai_lieu_id}
         API-->>Client: Tải về file *_track_changes.docx
@@ -155,7 +155,7 @@ Tải lên file dự thảo văn bản. Hệ thống tự động bóc tách n�
 
 #### `POST /audit`
 
-Thực hiện đối soát toàn bộ các phân đoạn của dự thảo văn bản với kho pháp luật Việt Nam. Hệ thống sử dụng tìm kiếm lai (Hybrid Search: Vector + BM25 + Reciprocal Rank Fusion) và mô hình ngôn ngữ lớn (Cascade 2-Pass) để phân loại từng đơn vị dự thảo thành 3 nhóm:
+Thực hiện đối soát toàn bộ các phân đoạn của dự thảo văn bản với kho pháp luật Việt Nam. Hệ thống sử dụng tìm kiếm lai (Hybrid Search: Vector + BM25 + Reciprocal Rank Fusion) để tìm các quy định pháp luật liên quan nhất trong kho, sau đó chạy song song mô hình ngôn ngữ lớn (LLM) để đối chiếu và phân loại từng đơn vị dự thảo thành 3 nhóm:
 * `VI_PHAM`: Phát hiện nội dung trái luật, vượt thẩm quyền hoặc mâu thuẫn căn cứ pháp lý.
 * `HOP_LE`: Phù hợp với các quy định pháp luật hiện hành.
 * `CHUA_XAC_DINH`: Nội dung đặc thù, thủ tục nội bộ hoặc chưa tìm thấy quy phạm pháp luật tương ứng.
@@ -166,9 +166,10 @@ Thực hiện đối soát toàn bộ các phân đoạn của dự thảo văn 
   * Content-Type: `application/json`
   * JSON Body Parameters:
     * `tai_lieu_id` (string, bắt buộc): ID tài liệu thu được từ bước `/upload/draft`.
+    * `top_k` (int, tùy chọn, mặc định `8`, min `1`, max `10`): Tham số dự phòng giới hạn ứng viên (hiện tại số ứng viên gửi LLM được điều khiển chính bởi cấu hình `RERANK_TOP_N`).
     * `van_ban_me_ids` (array[string], tùy chọn, mặc định `null`): Danh sách ID văn bản luật cấp trên giới hạn phạm vi rà soát (ví dụ: `["11822", "14560"]`). Nếu để `null` hoặc rỗng, hệ thống sẽ tự động quét đối chiếu trên **toàn bộ kho pháp luật**.
-    * `is_local` (boolean, tùy chọn, mặc định `null`): Chọn mô hình xử lý. `true` = Qwen3:14b chạy cục bộ; `false` = Gemini/Claude; `null` = lấy theo cấu hình server `.env`.
-    * `think` (boolean, tùy chọn, mặc định `null`): Cho phép bật/tắt luồng suy luận thinking của LLM local. `null` = mặc định tối ưu (Pass 1 phân loại nhanh `think=False`, Pass 2 đề xuất sửa `think=True`).
+    * `is_local` (boolean, tùy chọn, mặc định `null`): Chọn mô hình xử lý. `true` = Qwen local; `false` = Claude/Gemini; `null` = lấy theo cấu hình server `.env`.
+    * `think` (boolean, tùy chọn, mặc định `null`): Cho phép bật/tắt luồng suy luận thinking của LLM local. `null` = lấy theo giá trị cấu hình server (`LLM_THINK` trong file `.env`); `true`/`false` = bật hoặc tắt cờ suy luận thinking.
 * **Ví dụ cURL**:
   ```bash
   curl -X POST "http://localhost:8010/audit" \
@@ -203,10 +204,10 @@ Thực hiện đối soát toàn bộ các phân đoạn của dự thảo văn 
             "da_sua": true,
             "sua_boi": "Khoản 2, Điều 1 - Nghị định số 99/2026/NĐ-CP",
             "ngay_hieu_luc": "2026-07-01",
-            "da_het_hieu_luc": false
+            "da_het_hieu_luc": false,
+            "noi_dung_sau_sua": "Khoản 1 Điều 4 được sửa đổi bởi..."
           },
-          "de_xuat_sua": "",
-          "giai_thich": "Luật Tiếp công dân và Nghị định số 154/2026/NĐ-CP quy định danh sách đóng các trường hợp được phép từ chối tiếp công dân. Dự thảo tự ý quy định thêm trường hợp từ chối tiếp đối với người chưa có căn cước điện tử mức 2 là hạn chế quyền công dân trái thẩm quyền, cần loại bỏ."
+          "de_xuat_sua": ""
         }
       ],
       "HOP_LE": [
@@ -219,8 +220,7 @@ Thực hiện đối soát toàn bộ các phân đoạn của dự thảo văn 
             "vi_tri": "Điều 1",
             "trich_dan": "Điều 1. Phạm vi điều chỉnh\nLuật này quy định về trách nhiệm tiếp công dân; quyền và nghĩa vụ của người khiếu nại, tố cáo, kiến nghị, phản ánh..."
           },
-          "de_xuat_sua": "",
-          "giai_thich": "Nội dung phù hợp với phạm vi điều chỉnh và nguyên tắc của Luật Tiếp công dân."
+          "de_xuat_sua": ""
         }
       ],
       "CHUA_XAC_DINH": [
@@ -228,8 +228,7 @@ Thực hiện đối soát toàn bộ các phân đoạn của dự thảo văn 
           "don_vi_id": "8c593678-a28a-49f3-a15d-045330e70390-D8",
           "noi_dung_du_thao": "Điều 8. Tổ chức thực hiện và chế độ báo cáo nội bộ định kỳ hàng quý...",
           "can_cu_phap_ly": {},
-          "de_xuat_sua": "",
-          "giai_thich": "Nội dung mang tính điều hành nội bộ của cơ quan, không có quy phạm pháp luật cấp trên trực tiếp ràng buộc."
+          "de_xuat_sua": ""
         }
       ]
     }
@@ -237,19 +236,17 @@ Thực hiện đối soát toàn bộ các phân đoạn của dự thảo văn 
   ```
 
 > [!TIP]
-> **Quy ước hiển thị trường `de_xuat_sua`**:
-> * Khi `de_xuat_sua` có giá trị chữ: Đây là chuỗi **thay thế trực tiếp** cho cụm từ/vế câu trong `noi_dung_du_thao`.
-> * Khi `de_xuat_sua` là chuỗi rỗng `""`: Điều này thể hiện giải pháp lập pháp là **loại bỏ / bãi bỏ hoàn toàn** phần nội dung vi phạm đó (giao diện hiển thị *"Đề xuất: bỏ/loại phần nội dung vi phạm này"*).
+> **Quy ước trường `de_xuat_sua`**:
+> * Khi `de_xuat_sua` có giá trị chữ: Đây là đoạn văn bản sửa đổi đề xuất thay thế cho đoạn `noi_dung_du_thao`.
+> * Khi `de_xuat_sua` là chuỗi rỗng `""`: Đại diện cho phương án loại bỏ / bãi bỏ hoàn toàn đoạn nội dung vi phạm đó.
 
 ---
 
 #### `POST /audit/docx`
 
-Thực hiện đối soát toàn bộ như `/audit`, đồng thời tự động can thiệp vào file `.docx` gốc đã upload để tạo bản sao chứa **Word Track Changes chuẩn mực**:
-1. Thẻ `<w:del>` (gạch đỏ) bọc đúng phần nội dung vi phạm.
-2. Thẻ `<w:ins>` (gạch chân) chèn đoạn đề xuất sửa đổi mới (nếu có).
-3. Change bar (vạch đứng đỏ) xuất hiện bên lề trái paragraph có thay đổi.
-4. Bóng chú thích (Comment) tác giả "AI LEGAL" neo trực tiếp vào phạm vi sửa, hiển thị đầy đủ căn cứ pháp lý và ghi chú sửa đổi/bãi bỏ.
+Thực hiện đối soát toàn bộ như `/audit`, đồng thời xử lý trực tiếp trên file `.docx` gốc đã upload để tạo bản sao chứa **Word Track Changes và đánh dấu vi phạm**:
+1. **Trường hợp có đề xuất sửa (`de_xuat_sua` khác rỗng)**: Hệ thống tạo Track Changes chuẩn OpenXML Word — thẻ `<w:del>` (gạch chữ đỏ) cho phần vi phạm và thẻ `<w:ins>` (gạch chân) cho nội dung sửa mới, kèm vạch đỏ lề trái và chú thích (Comment).
+2. **Trường hợp không có đề xuất sửa (`de_xuat_sua` rỗng)**: Hệ thống tô màu đỏ đoạn văn bản vi phạm và gắn bóng chú thích (Comment) tác giả "AI LEGAL" neo vào đoạn văn bản, hiển thị đầy đủ thông tin căn cứ pháp lý, trích dẫn luật và cảnh báo sửa đổi/bãi bỏ (nếu có).
 
 * **Request**:
   * Method: `POST`
