@@ -19,8 +19,8 @@ port-impacts: provision_impacts ─► vanban.tac_dong          (chạy SAU buil
          ─► retrieval/rerank (TEI cross-encoder; lỗi/không cấu hình → giữ thứ tự RRF)
          ─► retrieval/can_cu (gộp anh em lên Khoản/Điều, dựng căn cứ + khối tác động sửa đổi)
          ─► audit/so_sanh.chay_tier2 (2-pass cascade):
-            * Pass 1: prompt_tier2_khoan (think=False) phân loại nhanh VI_PHAM / HOP_LE / CHUA_XAC_DINH
-            * Pass 2: lọc riêng các mục VI_PHAM ─► prompt_tier2_de_xuat (think=True) suy luận sâu và sinh đề xuất sửa
+            * Pass 1: prompt_tier2_khoan (think=False) phân loại nhanh VI_PHAM / HOP_LE / CHUA_XAC_DINH (tự động dùng prompt public khi is_local=False)
+            * Pass 2: lọc riêng các mục VI_PHAM ─► prompt_tier2_de_xuat (think=True) suy luận sâu và sinh đề xuất sửa (tự động dùng prompt public khi is_local=False)
          ─► audit/validate (kiểm snippet, cắt đề xuất)
          ─► VI_PHAM / HOP_LE / CHUA_XAC_DINH   (/audit/docx: thêm DOCX track-change qua audit/docx_track)
 /ask:    cùng retrieval ─► 1 lần gọi LLM (qa/chat) ─► câu trả lời có dẫn chiếu [n]

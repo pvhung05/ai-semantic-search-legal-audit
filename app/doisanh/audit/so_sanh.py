@@ -10,7 +10,12 @@ from typing import Any, Optional
 from app.core.config import settings
 from app.core.db.session import ket_noi
 from app.core.models.llm import goi_json
-from app.doisanh.audit.prompts import prompt_tier2_de_xuat, prompt_tier2_khoan
+from app.doisanh.audit.prompts import (
+    prompt_tier2_de_xuat,
+    prompt_tier2_de_xuat_public,
+    prompt_tier2_khoan,
+    prompt_tier2_khoan_public,
+)
 from app.doisanh.audit.validate import (
     cat_theo_pham_vi,
     la_de_xuat_menh_lenh_bo,
@@ -59,7 +64,10 @@ def so_sanh_chunk(dv_dict: dict, ung_vien: list[dict], is_local: bool | None = N
         }
         for u in ung_vien
     ]
-    messages = prompt_tier2_khoan(doan, uv_rut_gon, None, None, trich_yeu=trich_yeu)
+    dung_local = settings.IS_LOCAL if is_local is None else is_local
+    messages = prompt_tier2_khoan(
+        doan, uv_rut_gon, None, None, trich_yeu=trich_yeu, is_public=not dung_local,
+    )
     try:
         # Pass 1: luon tat thinking (think=False) de phan loai nhanh nhat
         data = goi_json(messages, is_local=is_local, think=False if think is None else think)
@@ -88,9 +96,11 @@ def de_xuat_sua_chunk(
     think: bool | None = True,
 ) -> dict:
     """Pass 2: Goi LLM (think=True) suy luan va de xuat sua cho snippet vi pham voi TAT CA can cu vi pham."""
+    dung_local = settings.IS_LOCAL if is_local is None else is_local
     messages = prompt_tier2_de_xuat(
         dv_dict, can_cu_list, snippet_sai=snippet_sai,
         ly_do_so_bo=ly_do_so_bo, trich_yeu=trich_yeu,
+        is_public=not dung_local,
     )
     try:
         data = goi_json(messages, is_local=is_local, think=think)

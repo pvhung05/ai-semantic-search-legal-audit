@@ -119,10 +119,17 @@ TỰ KIỂM TRA TRƯỚC KHI TRẢ JSON
 
 def prompt_tier2_khoan(
     doan_du_thao: dict, khoan_ung_vien: list[dict],
-    cap_du_thao: int | None, cap_me_cao_nhat: int | None,
+    cap_du_thao: int | None = None, cap_me_cao_nhat: int | None = None,
     trich_yeu: str = "",
+    is_public: bool = False,
 ) -> list[dict[str, str]]:
     """Prompt tier2: phan 1 doan du thao vao 3 trang thai vi_pham|hop_le|chua_xac_dinh."""
+    if is_public:
+        return prompt_tier2_khoan_public(
+            doan_du_thao, khoan_ung_vien,
+            cap_du_thao=cap_du_thao, cap_me_cao_nhat=cap_me_cao_nhat,
+            trich_yeu=trich_yeu,
+        )
     vi_du = (
         "\nVI DU:"
         "\n[vi_pham - san] Khoan me 'it nhat 300%' (san); du thao 'it nhat 250%'"
@@ -213,6 +220,69 @@ def prompt_tier2_khoan(
     ]
 
 
+TIER2_KHOAN_HE_THONG_PUBLIC = """Bạn là chuyên viên cao cấp thẩm định văn bản quy phạm pháp luật Việt Nam.
+Nhiệm vụ: Thẩm định MỘT đoạn dự thảo quy phạm pháp luật, đối chiếu chặt chẽ với danh sách CĂN CỨ PHÁP LÝ (Khoản/Điều mẹ) được cung cấp, và kết luận phân loại vào đúng 1 trong 3 trạng thái:
+- "vi_pham": Đoạn dự thảo mâu thuẫn, trái quy định, vượt quá thẩm quyền, hoặc phá vỡ quy định của căn cứ pháp lý cấp trên.
+- "hop_le": Đoạn dự thảo hoàn toàn phù hợp, cụ thể hóa đúng thẩm quyền trong khuôn khổ cho phép, hoặc khớp với quy định của căn cứ pháp lý.
+- "chua_xac_dinh": Không có căn cứ pháp lý nào trong danh sách điều chỉnh vấn đề của đoạn, hoặc căn cứ được cung cấp không cùng phạm vi/chủ đề để đối chiếu.
+
+### NGUYÊN TẮC THẨM ĐỊNH CỐT LÕI:
+1. XÁC ĐỊNH PHẠM VI & CHỦ THỂ (Loại bỏ căn cứ lệch lĩnh vực):
+   - So sánh trích yếu/lĩnh vực của dự thảo với tên văn bản của căn cứ. Nếu căn cứ thuộc lĩnh vực hoàn toàn khác (ví dụ: dự thảo về tiếp công dân, khiếu nại nhưng căn cứ lại là Thông tư về thuế, xây dựng...) thì đó là căn cứ lệch phạm vi -> LOẠI BỎ, không dùng để bắt lỗi.
+   - Trùng lặp cụm từ chung mang tính thủ tục ("đối tượng áp dụng", "nguyên tắc", "phạm vi điều chỉnh") KHÔNG đồng nghĩa là cùng vấn đề.
+   - Phân biệt rõ các chế định pháp luật: khiếu nại khác tố cáo khác kiến nghị/phản ánh; người khiếu nại khác người bị khiếu nại. Không áp quy định chế định này sang chế định khác.
+
+2. TIÊU CHÍ XÁC ĐỊNH VI PHẠM ("vi_pham"):
+   - VƯỢT TRẦN / DƯỚI SÀN (Thời hạn, định mức, số liệu): Căn cứ quy định thời hạn tối đa/trần ("không quá", "trong thời hạn X ngày") mà dự thảo kéo dài thêm thời hạn -> VI PHẠM. Căn cứ quy định mức sàn tối thiểu ("ít nhất", "không thấp hơn") mà dự thảo hạ thấp -> VI PHẠM. Thay đổi con số cố định của luật -> VI PHẠM.
+   - THÊM TRƯỜNG HỢP VÀO DANH SÁCH ĐÓNG: Căn cứ liệt kê danh sách đóng các trường hợp hạn chế quyền, từ chối giải quyết ("chỉ được...", "thực hiện trong các trường hợp sau:") mà dự thảo tự ý đặt thêm trường hợp/ngoại lệ ngoài danh sách (ví dụ: "ngoài các trường hợp theo quy định, cán bộ được từ chối...") -> VI PHẠM trực tiếp danh sách đóng của luật.
+   - THU HẸP QUYỀN / LOẠI BỎ HÌNH THỨC ĐƯỢC CÔNG NHẬN: Luật cho phép nhiều hình thức (trực tiếp, trực tuyến, bưu chính...) mà dự thảo chỉ cho phép một và loại trừ các hình thức còn lại -> VI PHẠM.
+   - VƯỢT THẨM QUYỀN: Văn bản cấp dưới sửa đổi, bãi bỏ hoặc quy định trái quy định của văn bản cấp trên.
+   - BẢO VỆ ĐỐI TƯỢNG ĐẶC THÙ: Tự ý công khai, tiết lộ thông tin cá nhân của người được pháp luật bảo vệ (người tố cáo, người làm chứng, trẻ em...) mà không có căn cứ luật định cho phép -> VI PHẠM.
+
+3. TIÊU CHÍ XÁC ĐỊNH HỢP LỆ ("hop_le"):
+   - CỤ THỂ HÓA ĐÚNG THẨM QUYỀN: Luật quy định chung cho "cơ quan, tổ chức có thẩm quyền" hoặc giao nhiệm vụ cho Bộ/ngành, và dự thảo của cơ quan đó quy định cụ thể tên các phòng ban, đơn vị trực thuộc hệ thống của mình để thực thi -> HỢP LỆ, TUYỆT ĐỐI KHÔNG coi là vi phạm và không bắt lỗi thay thế đơn vị của dự thảo.
+   - QUY PHẠM HÀNH CHÍNH & HIỆU LỰC: Các điều khoản về phạm vi, đối tượng trong hệ thống, phân công trách nhiệm thi hành ("Chánh Văn phòng, Thủ trưởng các đơn vị... chịu trách nhiệm thi hành"), hiệu lực thi hành ("có hiệu lực từ ngày...") -> HỢP LỆ.
+   - DIỄN ĐẠT CÔ ĐỌNG: Dự thảo diễn đạt gọn hơn nhưng nội dung, số liệu khớp hoàn toàn với căn cứ và không làm sai lệch bản chất -> HỢP LỆ.
+
+4. XỬ LÝ CĂN CỨ CÓ SỬA ĐỔI / BÃI BỎ:
+   - Nếu căn cứ có khối '[CĂN CỨ NÀY... ĐÃ ĐƯỢC SỬA ĐỔI...]' kèm 'Nội dung sau khi sửa: ...': Luôn lấy NỘI DUNG SAU KHI SỬA làm chuẩn để đối chiếu.
+   - Nếu căn cứ ghi 'ĐÃ HẾT HIỆU LỰC': Không dùng làm căn cứ hợp lệ; dự thảo vẫn viện dẫn căn cứ hết hiệu lực -> VI PHẠM.
+
+### ĐỊNH DẠNG ĐẦU RA (JSON THUẦN TÚY):
+BẮT BUỘC chỉ trả về 1 JSON object (không dùng markdown codeblock, không kèm văn bản giải thích ngoài JSON).
+LƯU Ý: Phải suy luận và viết 'giai_thich' trước để làm căn cứ chọn 'trang_thai':
+{
+  "giai_thich": "<Phân tích lập luận sắc bén: đối chiếu ý chính của dự thảo với căn cứ pháp lý, chỉ rõ lý do vì sao vi phạm, hợp lệ hoặc chưa xác định>",
+  "trang_thai": "vi_pham|hop_le|chua_xac_dinh",
+  "can_cu_vi_pham_ids": ["<danh sách tất cả khoan_id của căn cứ bị vi phạm; để trống [] nếu hợp lệ hoặc chưa xác định>"],
+  "can_cu": {
+    "khoan_id": "<khoan_id của căn cứ vi phạm chính; để rỗng nếu chua_xac_dinh>",
+    "trich_dan": "<trích dẫn nguyên văn điều/khoản quy phạm pháp luật bị vi phạm; để rỗng nếu chua_xac_dinh>"
+  },
+  "noi_dung_du_thao": "<CHỈ KHI vi_pham: Chép chính xác cụm từ/vế câu vi phạm trong dự thảo - CHỈ phần vi phạm, không chép cả đoạn dài; để rỗng nếu không vi phạm>",
+  "tin_cay": 0.95
+}
+"""
+
+
+def prompt_tier2_khoan_public(
+    doan_du_thao: dict, khoan_ung_vien: list[dict],
+    cap_du_thao: int | None = None, cap_me_cao_nhat: int | None = None,
+    trich_yeu: str = "",
+) -> list[dict[str, str]]:
+    """Prompt tier2 Pass 1 toi uu rieng cho LLM Public (Gemini, Claude, GPT)."""
+    user_content = (
+        (f"TRÍCH YẾU DỰ THẢO (Lĩnh vực/Chủ đề chính):\n{trich_yeu}\n\n" if trich_yeu else "")
+        + f"ĐOẠN DỰ THẢO CẦN THẨM ĐỊNH:\n{str(doan_du_thao)}\n\n"
+        + f"DANH SÁCH CĂN CỨ PHÁP LÝ ỨNG VIÊN ({len(khoan_ung_vien)} căn cứ):\n{str(khoan_ung_vien)}\n\n"
+        + "Hãy thực hiện thẩm định theo các nguyên tắc trên và trả về ĐÚNG 1 JSON object (nhớ phân tích 'giai_thich' trước):"
+    )
+    return [
+        {"role": "system", "content": TIER2_KHOAN_HE_THONG_PUBLIC},
+        {"role": "user", "content": user_content},
+    ]
+
+
 DE_XUAT_SUA_HE_THONG = HE_THONG_CHUNG + """
 Nhiệm vụ: Bạn là chuyên gia pháp chế soạn thảo văn bản quy phạm pháp luật Việt Nam.
 Một đoạn trong văn bản dự thảo ĐÃ ĐƯỢC XÁC ĐỊNH LÀ VI PHẠM (hoặc mâu thuẫn/không phù hợp) với CÁC CĂN CỨ PHÁP LÝ được cung cấp bên dưới.
@@ -245,14 +315,92 @@ QUY TẮC BẮT BUỘC:
 """
 
 
-def prompt_tier2_de_xuat(
+DE_XUAT_SUA_HE_THONG_PUBLIC = """Bạn là chuyên gia pháp chế soạn thảo văn bản quy phạm pháp luật Việt Nam.
+Một đoạn trong văn bản dự thảo ĐÃ ĐƯỢC XÁC ĐỊNH LÀ VI PHẠM với các căn cứ pháp lý được cung cấp bên dưới.
+Nhiệm vụ: Phân tích toàn diện nguyên nhân vi phạm, định vị chính xác cụm từ sai và viết đề xuất sửa đổi hoàn chỉnh, chuẩn mực theo ngôn ngữ lập pháp Việt Nam.
+
+### QUY TẮC BẮT BUỘC:
+1. ĐỊNH VỊ CHÍNH XÁC PHẦN SAI ('noi_dung_sai'):
+   - Chép CHÍNH XÁC từng ký tự của cụm từ/vế câu thực sự sai trong dự thảo cần xử lý.
+   - KHÔNG chép cả câu hoặc cả đoạn văn dài nếu chỉ sai một cụm từ, thời hạn, điều kiện hoặc số liệu.
+   - LƯU Ý: Phần mềm sẽ dùng 'noi_dung_sai' để tạo Word Track Changes gạch xóa. Nếu chọn cả đoạn văn, Word sẽ gạch bỏ toàn bộ đoạn văn. Do đó hãy định vị chính xác và hẹp nhất có thể.
+
+2. ĐỀ XUẤT SỬA ĐỔI TỐI THIỂU ('de_xuat_sua'):
+   - 'de_xuat_sua' là chuỗi văn bản thay thế trực tiếp vào vị trí của 'noi_dung_sai'.
+   - Giữ nguyên chủ thể, hệ thống cơ quan, ngữ cảnh của cơ quan ban hành dự thảo; chỉ sửa đúng chỗ sai để phù hợp với quy định cấp trên. Không thay thế chủ thể của dự thảo bằng chủ thể của căn cứ cấp trên.
+
+3. TRƯỜNG HỢP TỰ ĐẶT NGOẠI LỆ / BÃI BỎ ĐOẠN SAI (ĐỂ CHUỖI RỖNG):
+   - Nếu vi phạm là do dự thảo tự ý đặt thêm trường hợp, điều kiện ngoài danh sách đóng của luật cấp trên (ví dụ: tự ý đặt thêm trường hợp từ chối tiếp công dân), hoặc vế câu hoàn toàn trái luật cần bãi bỏ/loại bỏ:
+     -> 'noi_dung_sai': Chép chính xác cụm từ/trường hợp tự ý đặt thêm đó.
+     -> BẮT BUỘC trả về 'de_xuat_sua': "" (chuỗi rỗng).
+     -> Khi đó Word Track Changes sẽ chỉ gạch xóa đúng phần sai và bảo toàn nguyên vẹn phần còn lại.
+
+4. CẤM TUYỆT ĐỐI:
+   - KHÔNG chép lại nguyên văn cụm từ sai vào 'de_xuat_sua' (không trùng lặp với nội dung sai).
+   - KHÔNG dùng câu mệnh lệnh như "Cần bỏ...", "Đề nghị sửa thành...". Nếu muốn loại bỏ thì để chuỗi rỗng "".
+   - Sửa theo quy phạm mới nhất nếu căn cứ có khối sửa đổi, bổ sung.
+
+### ĐỊNH DẠNG ĐẦU RA (JSON THUẦN TÚY):
+BẮT BUỘC chỉ trả về 1 JSON object (không dùng markdown codeblock, không giải thích ngoài JSON):
+{
+  "giai_thich": "<Phân tích sâu sắc nguyên nhân vi phạm và cách thức sửa đổi>",
+  "noi_dung_sai": "<Chép chính xác cụm từ/vế câu vi phạm thực tế cần gạch xóa/thay thế>",
+  "de_xuat_sua": "<Chuỗi văn bản thay thế trực tiếp, hoặc chuỗi rỗng \"\" nếu bãi bỏ/loại bỏ hoàn toàn phần sai>"
+}
+"""
+
+
+def prompt_tier2_de_xuat_public(
     doan_du_thao: dict,
     can_cu_list: list[dict] | dict,
     snippet_sai: str = "",
     ly_do_so_bo: str = "",
     trich_yeu: str = "",
 ) -> list[dict[str, str]]:
+    """Prompt tier2 Pass 2 toi uu rieng cho LLM Public (Gemini, Claude, GPT)."""
+    nd_sai = snippet_sai.strip() or doan_du_thao.get("noi_dung", "")
+    items = can_cu_list if isinstance(can_cu_list, list) else [can_cu_list]
+    cc_rut_gon = [
+        {
+            "so_hieu": c.get("so_hieu", ""),
+            "ten_van_ban": c.get("ten_van_ban", ""),
+            "so_dieu": c.get("so_dieu"),
+            "so_khoan": c.get("so_khoan"),
+            "diem": c.get("diem"),
+            "tieu_de_dieu": c.get("tieu_de_dieu", ""),
+            "noi_dung": (c.get("noi_dung") or "")[:2200],
+        }
+        for c in items
+    ]
+    user_content = (
+        (f"TRÍCH YẾU DỰ THẢO:\n{trich_yeu}\n\n" if trich_yeu else "")
+        + f"TOÀN BỘ ĐOẠN DỰ THẢO GỐC:\n{doan_du_thao.get('noi_dung', '')}\n\n"
+        + f"NỘI DUNG XÁC ĐỊNH VI PHẠM (Cần sửa đổi):\n{nd_sai}\n\n"
+        + f"CÁC CĂN CỨ PHÁP LÝ BỊ VI PHẠM ({len(cc_rut_gon)} căn cứ):\n{str(cc_rut_gon)}\n\n"
+        + (f"GHI CHÚ VI PHẠM SƠ BỘ:\n{ly_do_so_bo}\n\n" if ly_do_so_bo else "")
+        + "Hãy suy luận tổng thể và trả về 1 JSON object: {'giai_thich': '...', 'noi_dung_sai': '...', 'de_xuat_sua': '...'}"
+    )
+    return [
+        {"role": "system", "content": DE_XUAT_SUA_HE_THONG_PUBLIC},
+        {"role": "user", "content": user_content},
+    ]
+
+
+def prompt_tier2_de_xuat(
+    doan_du_thao: dict,
+    can_cu_list: list[dict] | dict,
+    snippet_sai: str = "",
+    ly_do_so_bo: str = "",
+    trich_yeu: str = "",
+    is_public: bool = False,
+) -> list[dict[str, str]]:
     """Prompt tier2 Pass 2: suy luan va de xuat sua cho doan da xac dinh vi pham cung tat ca can cu (think=True)."""
+    if is_public:
+        return prompt_tier2_de_xuat_public(
+            doan_du_thao, can_cu_list,
+            snippet_sai=snippet_sai, ly_do_so_bo=ly_do_so_bo,
+            trich_yeu=trich_yeu,
+        )
     nd_sai = snippet_sai.strip() or doan_du_thao.get("noi_dung", "")
     items = can_cu_list if isinstance(can_cu_list, list) else [can_cu_list]
     cc_rut_gon = [

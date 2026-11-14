@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from app.doisanh.audit.prompts import prompt_tier2_de_xuat, prompt_tier2_khoan
+from app.doisanh.audit.prompts import (
+    prompt_tier2_de_xuat,
+    prompt_tier2_de_xuat_public,
+    prompt_tier2_khoan,
+    prompt_tier2_khoan_public,
+)
 from app.doisanh.audit.segment import DonViSegment
 from app.doisanh.audit.so_sanh import chay_tier2, de_xuat_sua_chunk, so_sanh_chunk
 
@@ -134,3 +139,58 @@ def test_chay_tier2_multiple_violating_bases_single_call():
         assert "Luat Mau" in item["ten_van_ban"] and "Nghi dinh Huong dan" in item["ten_van_ban"]
         # Chi goi tong cong dung 2 lan: 1 lan Pass 1, 1 lan Pass 2
         assert mock_goi.call_count == 2
+
+
+def test_prompt_tier2_khoan_public():
+    doan = {"noi_dung": "Cán bộ từ chối tiếp khi người dân không có CCCD gắn chip."}
+    uv = [{
+        "khoan_id": "k1", "so_hieu": "154/2026/ND-CP", "so_dieu": 4, "so_khoan": 1,
+        "diem": None, "tieu_de_dieu": "Tu choi tiep", "noi_dung": "Viec tu choi duoc thuc hien trong cac truong hop...",
+    }]
+    messages = prompt_tier2_khoan_public(doan, uv, trich_yeu="Tiếp công dân")
+    assert len(messages) == 2
+    assert messages[0]["role"] == "system"
+    # Kiem tra co huong dan chuyen vien cao cap va yeu cau JSON
+    assert "chuyên viên cao cấp" in messages[0]["content"].lower()
+    # Kiem tra giai_thich duoc uu tien truoc trang_thai trong JSON output schema
+    assert '"giai_thich"' in messages[0]["content"]
+    assert '"trang_thai"' in messages[0]["content"]
+    # Kiem tra truyen qua prompt_tier2_khoan voi is_public=True
+    msg_wrap = prompt_tier2_khoan(doan, uv, trich_yeu="Tiếp công dân", is_public=True)
+    assert msg_wrap[0]["content"] == messages[0]["content"]
+
+
+def test_prompt_tier2_de_xuat_public():
+    doan = {"noi_dung": "Thoi han xu ly la 30 ngay."}
+    can_cu = {"so_hieu": "01/2024", "noi_dung": "Khong qua 10 ngay."}
+    messages = prompt_tier2_de_xuat_public(doan, [can_cu], snippet_sai="30 ngay", trich_yeu="Quy trinh")
+    assert len(messages) == 2
+    assert "chuyên gia pháp chế" in messages[0]["content"].lower()
+    assert "noi_dung_sai" in messages[0]["content"]
+    assert "de_xuat_sua" in messages[0]["content"]
+    msg_wrap = prompt_tier2_de_xuat(doan, [can_cu], snippet_sai="30 ngay", is_public=True)
+    assert msg_wrap[0]["content"] == messages[0]["content"]
+
+
+def test_so_sanh_chunk_chuyen_prompt_khi_is_local_false():
+    dv = {"id": "d1", "noi_dung": "Noi dung test"}
+    uv = [{"khoan_id": "k1", "so_hieu": "01/2020", "so_dieu": 1, "so_khoan": 1, "diem": None, "tieu_de_dieu": "T", "noi_dung": "N"}]
+    with patch("app.doisanh.audit.so_sanh.goi_json") as mock_goi:
+        mock_goi.return_value = {"trang_thai": "hop_le"}
+        # Goi voi is_local=False -> dung prompt public
+        so_sanh_chunk(dv, uv, is_local=False)
+        mock_goi.assert_called_once()
+        sent_messages = mock_goi.call_args.args[0]
+        assert "chuyên viên cao cấp" in sent_messages[0]["content"].lower()
+
+
+def test_de_xuat_sua_chunk_chuyen_prompt_khi_is_local_false():
+    dv = {"id": "d1", "noi_dung": "Noi dung test 30 ngay"}
+    cc = [{"khoan_id": "k1", "so_hieu": "01/2020", "noi_dung": "Toi da 10 ngay"}]
+    with patch("app.doisanh.audit.so_sanh.goi_json") as mock_goi:
+        mock_goi.return_value = {"giai_thich": "Vuot tran", "noi_dung_sai": "30 ngay", "de_xuat_sua": "10 ngay"}
+        de_xuat_sua_chunk(dv, cc, snippet_sai="30 ngay", is_local=False)
+        mock_goi.assert_called_once()
+        sent_messages = mock_goi.call_args.args[0]
+        assert "QUY TẮC BẮT BUỘC" in sent_messages[0]["content"]
+

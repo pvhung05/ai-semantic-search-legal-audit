@@ -36,6 +36,10 @@ Cập nhật cuối mỗi phiên làm việc (xem quy tắc trong [AGENTS.md](AG
 
 ## Nhật ký phiên
 
+- 14/11/2026 — branch `feat/ai-agent`: tạo bộ prompt chuyên biệt cho Public LLM (Gemini, Claude, GPT):
+  - Pass 1 (`prompt_tier2_khoan_public`): thiết kế tiếng Việt chuẩn 100%, cấu trúc Markdown rành mạch, đưa trường `giai_thich` lên trước `trang_thai` trong JSON schema để mô hình thực hiện Chain-of-Thought trước khi chốt kết luận, giải quyết dứt điểm tình trạng Gemini phán đoán vội vã.
+  - Pass 2 (`prompt_tier2_de_xuat_public`): tối ưu định vị `noi_dung_sai` và sinh `de_xuat_sua` chuẩn văn phong lập pháp Việt Nam; hỗ trợ trả về chuỗi rỗng khi bãi bỏ trường hợp tự ý đặt thêm trái luật.
+  - Tự động kích hoạt khi gọi với `is_local=False` (hoặc `.env` cấu hình `IS_LOCAL=false`) trong `so_sanh_chunk` và `de_xuat_sua_chunk`. Bổ sung 4 unit test trong `test_so_sanh_cascade.py`.
 - 14/11/2026 — branch `feat/ai-agent`: hoàn thành toàn diện 13/13 hạng mục audit theo báo cáo ponytail:
   - Finding 1 (`56a05dc`): Sửa `segment.py` không bỏ qua đoạn văn xuôi khi dự thảo không có đề mục La Mã (mặc định tiêu đề "Nội dung").
   - Finding 2, 3, 5, 7 (`f880db2`): Thêm `la_id_hop_le()` chặn path traversal ở `file_store.py` và `routes_simple.py`; đặt ngưỡng upload 25MB (HTTP 413); trả về 501 cho `/upload/legal` do nạp thủ công chưa hỗ trợ trên schema cây; bỏ lời gọi sinh embedding thừa khi upload draft.

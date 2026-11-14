@@ -23,8 +23,9 @@
 
 ## Khi sửa prompt
 
-- **Qwen3:14b local là model chính** (`IS_LOCAL=true`). Prompt phải chạy tốt trên Qwen trước; Gemini là phụ.
-- Prompt hiện viết tiếng Việt **không dấu** trong phần ví dụ/user message — giữ thống nhất trong một prompt.
+- **Hỗ trợ 2 bộ prompt chuyên biệt cho Local LLM và Public LLM**:
+  + **Local LLM (Qwen3:14b qua Ollama, `IS_LOCAL=true`)**: dùng `prompt_tier2_khoan` và `prompt_tier2_de_xuat` với tập few-shot ví dụ cụ thể, định dạng gọn gàng để kiểm soát chặt chẽ model local.
+  + **Public LLM (Gemini, Claude, GPT, `IS_LOCAL=false` hoặc request `is_local=False`)**: dùng `prompt_tier2_khoan_public` và `prompt_tier2_de_xuat_public`. Thiết kế tiếng Việt có dấu 100%, cấu trúc phân cấp Markdown rõ ràng, và quan trọng nhất: **đặt trường `giai_thich` TRƯỚC `trang_thai` trong JSON schema** để ép mô hình thực hiện Chain-of-Thought (suy luận logic) trước khi chốt nhãn kết luận, tránh phán quyết vội vã.
 - Chưa có bộ eval cho luồng này (`scripts/eval_audit.py` chỉ đo workflow di sản). Mọi thay đổi prompt/tham số retrieval hiện chỉ kiểm tay trên dự thảo mẫu. Ghi rõ ca đã thử vào commit message hoặc `PROGRESS.md`.
 
 ## Biết là còn thiếu (đừng tưởng đã có)
