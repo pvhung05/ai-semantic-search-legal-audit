@@ -23,8 +23,7 @@ Cập nhật cuối mỗi phiên làm việc (xem quy tắc trong [AGENTS.md](AG
 ## Tiếp theo (thứ tự ưu tiên đã xác nhận)
 
 1. **Kiểm trích dẫn nguyên văn** trong `so_sanh.py`: `rapidfuzz.partial_ratio(trich_dan, căn cứ đã đưa vào prompt) ≥ 85`, không đạt → hạ `CHUA_XAC_DINH`. Chi tiết: [app/doisanh/audit/CONSTRAINTS.md](app/doisanh/audit/CONSTRAINTS.md).
-2. **Bộ đánh giá có nhãn** cho luồng hiện tại: dữ liệu (đoạn dự thảo → verdict + căn cứ đúng) từ dự thảo thật đã được người duyệt; viết lại `scripts/eval_audit.py` cho `chay_tier2`; chạy mỗi khi đổi prompt / model / tham số retrieval.
-3. **Dọn mã di sản** (danh sách trong [app/doisanh/ARCHITECTURE.md](app/doisanh/ARCHITECTURE.md)). Port hay xóa từng nhóm: TODO: cần xác nhận.
+2. **Bộ đánh giá có nhãn** cho luồng hiện tại: dữ liệu (đoạn dự thảo → verdict + căn cứ đúng) từ dự thảo thật đã được người duyệt; viết lại công cụ eval cho `chay_tier2`; chạy mỗi khi đổi prompt / model / tham số retrieval.
 
 Đã quyết định nhưng chưa xếp thứ tự:
 - **Đổi tên toàn bộ code sang tiếng Anh** (hàm, biến, module; quyết định 13/11/2026, chưa bắt đầu). Làm thành đợt riêng, theo từng module, mỗi module một commit, `python tasks.py check` xanh sau mỗi bước; cập nhật tài liệu module trong cùng commit. Vị trí trong thứ tự ưu tiên: TODO: cần xác nhận.
@@ -37,6 +36,15 @@ Cập nhật cuối mỗi phiên làm việc (xem quy tắc trong [AGENTS.md](AG
 
 ## Nhật ký phiên
 
+- 14/11/2026 — branch `feat/ai-agent`: hoàn thành toàn diện 13/13 hạng mục audit theo báo cáo ponytail:
+  - Finding 1 (`56a05dc`): Sửa `segment.py` không bỏ qua đoạn văn xuôi khi dự thảo không có đề mục La Mã (mặc định tiêu đề "Nội dung").
+  - Finding 2, 3, 5, 7 (`f880db2`): Thêm `la_id_hop_le()` chặn path traversal ở `file_store.py` và `routes_simple.py`; đặt ngưỡng upload 25MB (HTTP 413); trả về 501 cho `/upload/legal` do nạp thủ công chưa hỗ trợ trên schema cây; bỏ lời gọi sinh embedding thừa khi upload draft.
+  - Finding 4 (`38baa51`): Bổ sung migration 018 tạo chỉ mục vector HNSW (`chunk_embedding_hnsw`) trên `rag.chunk` với `vector_cosine_ops`.
+  - Finding 9 (`548742f`): Tái sử dụng `httpx.Client()` connection pool keep-alive cho cả LLM và Embedder thay vì mở mới từng request.
+  - Finding 8, 10, 11 (`5ae0413`): Tôn trọng tham số `top_k` tại `/ask`; lọc trùng lặp cell trong bảng Word có merge cells; cache `vb_cache` và `dieu_cache` tránh truy vấn N+1 lặp lại trong `nap_khoan_ung_vien`.
+  - Finding 13 (`8a16459`): Thống nhất thư viện HTTP, chuyển `fetcher.py` và `rerank.py` từ `requests` sang `httpx`, gỡ bỏ hoàn toàn `requests` khỏi `requirements.txt`.
+  - Finding 12 (`8f64ae5`): Bổ sung test offline cho `file_store.py` và các API endpoints trong `routes_simple.py`, kiểm thử độc lập không phụ thuộc socket loopback trong môi trường sandbox.
+  - Finding 6 (`4a10719`): Dọn dẹp dứt điểm ~1.900 dòng mã di sản: gỡ bỏ toàn bộ 9 module workflow stateful cũ bám schema đã drop và 6 scripts di sản không còn dùng; cập nhật tài liệu kiến trúc.
 - 13/11/2026 — branch `feat/ai-agent`: sửa lỗi Word Track Changes loại bỏ cả đoạn thay vì chỉ xóa phần sai: (1) sửa `docx_track.py` áp dụng Track Changes ngay cả khi `de_xuat_sua` rỗng để gạch xóa `<w:del>` đúng snippet sai và giữ nguyên vẹn phần còn lại của đoạn văn; (2) Pass 2 bổ sung trả về `noi_dung_sai` để thu hẹp chính xác cụm từ/vế câu vi phạm thay vì ôm cả đoạn; bổ sung unit test `test_de_xuat_rong_xoa_dung_snippet_giu_phan_con_lai`.
 - 13/11/2026 — branch `feat/ai-agent`: sửa lỗi đề xuất sửa trùng lặp dự thảo và sửa định dạng căn cứ pháp lý: (1) gỡ bỏ regex ép xuống dòng Chương/Điều/Khoản/Điểm tránh ngắt vụn câu; giữ nguyên văn bản luật tự nhiên và cách dòng rõ ràng giữa căn cứ gốc và căn cứ tác động; (2) quy định rõ trong Pass 2 khi đoạn vi phạm tự đặt thêm ngoại lệ/trái luật cần bãi bỏ thì trả về `de_xuat_sua: ""` (UI tự hiện "Đề xuất: bỏ/loại phần nội dung vi phạm này"); bổ sung `la_de_xuat_trung_lap` và `la_de_xuat_menh_lenh_bo` trong `validate.py` để tự động lọc sạch.
 - 13/11/2026 — branch `feat/ai-agent`: ẩn triệt để nội dung luật sửa đổi của LLM trên UI và DOCX: chỉ hiển thị căn cứ gốc và thông tin căn cứ tác động (nguồn sửa đổi/bãi bỏ); giữ khối nội dung sửa đổi cho LLM đối chiếu nội bộ; chuẩn hóa `tach_can_cu_goc` trong `validate.py`.
