@@ -70,6 +70,19 @@ def test_du_thao_khong_dieu():
     assert tieu_des == {"Quy định chung", "Thực hiện"}
 
 
+def test_du_thao_van_xuoi_khong_de_muc():
+    """Du thao van xuoi thuan khong co de muc La Ma (I, II) hay Dieu van khong bi bo qua."""
+    text = (
+        "UBND tinh ban hanh quy dinh tiep cong dan.\n\n"
+        "Can bo tiep cong dan khong duoc tu y tu choi tiep dan.\n"
+        "Moi truong hop tu choi phai lap bien ban theo quy dinh.\n"
+    )
+    kq = segment_du_thao(text, "TL-prose")
+    assert kq.co_cau_truc_dieu is False
+    assert len(kq.don_vi) >= 1
+    assert any("tiep cong dan" in dv.noi_dung for dv in kq.don_vi)
+
+
 def test_chuong_muc_khong_lam_ban_noi_dung():
     """Header Chuong/Muc giua cac Dieu: khong dinh vao noi dung Khoan truoc,
     va chuong duoc gan dung cho tung don vi."""

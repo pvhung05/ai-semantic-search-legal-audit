@@ -355,15 +355,16 @@ def _segment_khong_dieu(lines: list[str], tai_lieu_id: str, kq: KetQuaSegment) -
             return
         para = " ".join(buffer_paragraph).strip()
         buffer_paragraph = []
-        if muc_tieu_de is None or not para:
+        if not para:
             return
+        tieu_de = muc_tieu_de or "Nội dung"
         cau_list = [c.strip() for c in RE_CAU.split(para) if c.strip()]
         for cau in cau_list:
             thu_tu += 1
             dv = DonViSegment(
                 id=f"{tai_lieu_id}:P{thu_tu}",
-                cap="doan", tieu_de=muc_tieu_de, noi_dung=cau,
-                hash=_hash(cau, muc_tieu_de),
+                cap="doan", tieu_de=tieu_de, noi_dung=cau,
+                hash=_hash(cau, tieu_de),
                 thu_tu=thu_tu,
             )
             kq.don_vi.append(dv)
