@@ -12,7 +12,7 @@ Python ≥ 3.10, FastAPI, PostgreSQL 16 + pgvector, psycopg3 (không ORM), **kh�
 | `app/crawl/` | service 1: cào vbpl.vn → schema `vanban` | [ARCHITECTURE](app/crawl/ARCHITECTURE.md) · [CONSTRAINTS](app/crawl/CONSTRAINTS.md) |
 | `app/doisanh/` | service 2: dựng cây + chunk, truy hồi, audit, hỏi đáp, API + UI | [ARCHITECTURE](app/doisanh/ARCHITECTURE.md) · [audit CONSTRAINTS](app/doisanh/audit/CONSTRAINTS.md) |
 | `migrations/` | schema SQL `danhmuc` / `vanban` / `rag` | [ARCHITECTURE](migrations/ARCHITECTURE.md) · [CONSTRAINTS](migrations/CONSTRAINTS.md) |
-| `scripts/` | `init_db.py` (áp migration), `embed_chunks.py`, `crawl_vbpl.py` (vỏ gọi `app.crawl.cli`); `fetch_*.py` để thăm dò API vbpl; `audit.py`, `eval_audit.py`, `ingest.py`, `sync.py`, `seed_demo.py`, `embed_all.py` là di sản | — |
+| `scripts/` | `init_db.py` (áp migration), `embed_chunks.py`, `crawl_vbpl.py` (vỏ gọi `app.crawl.cli`); `fetch_*.py` để thăm dò API vbpl | — |
 | `.claude/skills/` | quy ước chi tiết theo chủ đề (code sạch, parser luật, DB, audit) | đọc khi chạm vùng tương ứng |
 | [PROGRESS.md](PROGRESS.md) | đã xong / đang làm / tiếp theo | **đọc trước khi bắt đầu việc** |
 
@@ -55,7 +55,7 @@ python -m pytest tests/audit/test_validate.py -q   # một file; thêm ::ten_tes
 - `app/core` không import service nào; `app/crawl` và `app/doisanh` **không import lẫn nhau**, chỉ gặp nhau qua DB.
 - Chỉ `app/crawl` được gọi vbpl.vn, tuần tự và có giãn cách.
 - DB chỉ qua `ket_noi()`, SQL tham số hóa. **Không sửa migration đã áp dụng** — thêm file số kế tiếp.
-- **Luồng audit đang chạy là `api/routes_simple.py` → `audit/so_sanh.py`.** `workflow.py`, `mapping.py`, `tier2.py`… là di sản bám schema đã drop — đừng sửa chúng để thay đổi hành vi `/audit`.
+- **Luồng audit đang chạy là `api/routes_simple.py` → `audit/so_sanh.py`.** Các module cũ như `workflow.py`, `mapping.py`, `tier2.py`… đã được dọn dẹp. Luồng chính chạy 2-pass cascade qua `so_sanh.py`.
 - Không commit `.env`, mật khẩu, DB URL thật, hay các tệp `.gitignore` đang chặn (tài liệu nội bộ chứa thông tin nhạy cảm, cấu hình Docker). Repo đã chủ động gỡ tên tổ chức khỏi code/tài liệu (commit `62a64bc`) — đừng đưa lại.
 - Commit dưới tên tác giả repo, **không thêm dòng `Co-Authored-By` của AI**. Định dạng message: `[update]: …`, `[fix]: …`, `chore: …`, tiếng Việt.
 - Quy ước tên (chi tiết trong skill `clean-code-solid`): code hiện tại dùng tiếng Việt không dấu (`ket_noi`, `tim_hybrid`); đã quyết định **chuyển toàn bộ sang tiếng Anh** (xem PROGRESS.md). Code mới viết tên tiếng Anh; đừng tự đổi tên code cũ ngoài đợt đổi tên.

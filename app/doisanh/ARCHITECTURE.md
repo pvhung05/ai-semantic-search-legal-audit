@@ -38,15 +38,16 @@ Số ứng viên ở mỗi tầng: `RERANK_LAY_VE`, `RERANK_TOP_N` trong `app/co
 
 ## Mã di sản — đừng nhầm với luồng chính
 
-Có hai đường audit. **Chỉ `routes_simple.py` → `audit/so_sanh.py` là đang chạy.** Các module sau viết cho schema v3 (`dieu_luat`/`khoan`, đã bị migration 003/012 drop); luồng chính không gọi tới, đừng sửa chúng để "fix" hành vi của `/audit`:
+Có hai đường audit trước đây. **Chỉ `routes_simple.py` → `audit/so_sanh.py` là đang chạy.** Cụm workflow stateful cũ bám schema v3 (`audit/workflow.py`, `mapping.py`, `tier2.py`, `repo_audit.py`...) và các script cũ (`scripts/audit.py`, `scripts/eval_audit.py`, `scripts/ingest.py`...) đã được gỡ bỏ hoàn toàn để tránh nợ kỹ thuật.
+
+Các module cũ còn lại phục vụ nạp file trực tiếp hoặc kiểm thử:
 
 | Nhóm | Module |
 |---|---|
-| Workflow stateful (Điều ↔ Điều mẹ) | `audit/workflow.py`, `mapping.py`, `tier2.py`, `focus_khoan.py`, `parent_docs.py`, `consolidate.py`, `fallback.py`, `report.py`, `db/repo_audit.py`, `scripts/audit.py`, `scripts/eval_audit.py` |
-| Nạp luật từ file | `ingestion/pipeline.py`, `amend_parser.py`, `summarize.py`, `chunks.py`, `sync.py`, `db/repo_van_ban.py`, `scripts/ingest.py`, `scripts/sync.py`, `scripts/seed_demo.py`, `scripts/embed_all.py` |
+| Nạp luật từ file (cũ) | `ingestion/pipeline.py`, `amend_parser.py`, `summarize.py`, `chunks.py`, `sync.py`, `db/repo_van_ban.py` |
 | Tắt bằng cờ (`ENABLE_TIER1=false`) | `audit/tier1.py`, `db/repo_hieu_luc.py`, `ingestion/citation_parser.py`, `ingestion/quan_he.py` |
 
-`routes_simple.py` vẫn **import** `tier1.chay_tier1` và `ingestion.pipeline.nap_van_ban` (`/upload/legal`), nên xóa các module này sẽ làm vỡ API. **`POST /upload/legal` gần như chắc chắn hỏng**: nó đi qua `repo_van_ban`, ghi vào `dieu_luat`/`khoan` đã bị drop (suy từ SQL, chưa chạy thử). Nạp luật vào kho chỉ qua crawl → `build-cay`. Kế hoạch port hay xóa: TODO: cần xác nhận.
+**`POST /upload/legal`** hiện trả về HTTP 501 Not Implemented (kho luật hiện tại nạp tự động qua crawler → `build-cay`). Kế hoạch port hay xóa hẳn bộ nạp file trực tiếp: TODO: cần xác nhận.
 
 ## Công cụ debug
 

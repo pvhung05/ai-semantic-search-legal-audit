@@ -24,7 +24,6 @@ from app.doisanh.audit.tier1 import chay_tier1
 from app.doisanh.audit.validate import tach_can_cu_goc
 from app.doisanh.db import repo_tai_lieu as rt
 from app.doisanh.ingestion.loader import doc_file
-from app.doisanh.ingestion.pipeline import nap_van_ban
 from app.doisanh.public_loader import tac_dong_tom_tat
 from app.doisanh.qa.chat import hoi_dap
 
