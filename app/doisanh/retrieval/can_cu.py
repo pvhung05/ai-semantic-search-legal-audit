@@ -183,17 +183,20 @@ def nap_khoan_ung_vien(conn, chunk_ids: list[str], diem_rrf: dict[str, float],
 
     # Buoc 3: build noi_dung day du cho tung don vi
     out: list[dict] = []
+    vb_cache: dict[str, tuple[str | None, str | None]] = {}
+    dieu_cache: dict[tuple[str, str], tuple[str | None, str | None]] = {}
     with conn.cursor() as cur:
         for vb_id, up, rank, rrf in don_vi:
             dp = _dieu_path(up)
             so_dieu = ten_dieu = None
             if dp:
-                cur.execute(
-                    "SELECT so_thu_tu, tieu_de FROM node WHERE van_ban_id=%s AND duong_dan=%s",
-                    (vb_id, dp),
-                )
-                if r := cur.fetchone():
-                    so_dieu, ten_dieu = r
+                if (vb_id, dp) not in dieu_cache:
+                    cur.execute(
+                        "SELECT so_thu_tu, tieu_de FROM node WHERE van_ban_id=%s AND duong_dan=%s",
+                        (vb_id, dp),
+                    )
+                    dieu_cache[(vb_id, dp)] = cur.fetchone() or (None, None)
+                so_dieu, ten_dieu = dieu_cache[(vb_id, dp)]
             phan, chuong = _phan_chuong(cur, vb_id, up)
             cur.execute(
                 "SELECT id, cap, so_thu_tu FROM node WHERE van_ban_id=%s AND duong_dan=%s",
@@ -225,8 +228,10 @@ def nap_khoan_ung_vien(conn, chunk_ids: list[str], diem_rrf: dict[str, float],
             noi_dung = _noi_khong_lap(
                 [ten_dieu] + [html_doc_to_text(r[0] or "") for r in cur.fetchall()]
             )
-            cur.execute("SELECT so_hieu, ten FROM van_ban WHERE id=%s", (vb_id,))
-            vb = cur.fetchone() or (None, None)
+            if vb_id not in vb_cache:
+                cur.execute("SELECT so_hieu, ten FROM van_ban WHERE id=%s", (vb_id,))
+                vb_cache[vb_id] = cur.fetchone() or (None, None)
+            vb = vb_cache[vb_id]
             out.append({
                 "khoan_id": unit_id,
                 "van_ban_id": vb_id,

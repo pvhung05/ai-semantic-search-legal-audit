@@ -19,8 +19,11 @@ def doc_docx(path: Path) -> str:
         parts.append(para.text)
     for table in document.tables:
         for row in table.rows:
+            seen_cells = set()
             for cell in row.cells:
-                parts.append(cell.text)
+                if cell._tc not in seen_cells:
+                    seen_cells.add(cell._tc)
+                    parts.append(cell.text)
     return "\n".join(parts)
 
 

@@ -99,11 +99,11 @@ def hoi_dap(
     )
     if not rows:
         return rong
-    # Dung can cu GIONG /audit: gom ve Khoan me -> rerank xuong RERANK_TOP_N.
+    # Dung can cu GIONG /audit: gom ve Khoan me -> rerank xuong top_k (hoac RERANK_TOP_N).
     diem_rrf = {r["chunk_id"]: r["diem_rrf"] for r in rows}
     ung_vien = nap_khoan_ung_vien(
         conn, [r["chunk_id"] for r in rows], diem_rrf,
-        query=cau_hoi, top_n=settings.RERANK_TOP_N,
+        query=cau_hoi, top_n=top_k or settings.RERANK_TOP_N,
     )
     if not ung_vien:
         return rong
