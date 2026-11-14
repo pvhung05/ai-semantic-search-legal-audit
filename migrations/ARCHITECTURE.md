@@ -14,4 +14,4 @@ Một database, 3 schema (từ migration 013). `search_path = vanban, danhmuc, r
 - **Model hiện hành bắt đầu từ 003** (cây `node` + `chunk`). `001_init.sql` là schema v3 cũ (`dieu_luat`/`khoan`, các hàm `khoan_hieu_luc_tai`, `ban_hop_nhat`…); phần lớn đã bị 003/012 drop — đừng dựa vào nó để hiểu DB hiện tại.
 - `node.id` là **UUID của vbpl**, không tự ghép. `duong_dan` mã hóa vị trí: `CI>D5>K1>da` = Chương I › Điều 5 › Khoản 1 › điểm a.
 - **Truy hồi viết trong SQL**: `tim_kiem_hybrid()` (007) = vector cosine + BM25 (`tsvector` cấu hình `simple`, không tách từ tiếng Việt) hợp nhất RRF, lọc hiệu lực theo ngày và theo `p_van_ban_ids`. Tham số `p_cap_max`, `p_linh_vuc` còn trong chữ ký nhưng **không có tác dụng**.
-- Không có HNSW index trong migration; nếu cần thì tạo sau khi nạp dữ liệu.
+- Chỉ mục HNSW cho vector cosine trên `rag.chunk.embedding` được bổ sung ở migration 018 (`chunk_embedding_hnsw`).
