@@ -17,6 +17,14 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from app.core.config import settings
 
 RE_CODE_FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
+_CLIENT: httpx.Client | None = None
+
+
+def _lay_client() -> httpx.Client:
+    global _CLIENT
+    if _CLIENT is None or _CLIENT.is_closed:
+        _CLIENT = httpx.Client(timeout=120)
+    return _CLIENT
 
 
 class LoiLLM(Exception):
@@ -82,10 +90,10 @@ def goi_chat(
         }
         if extra:
             body.update(extra)
-        with httpx.Client(timeout=120) as cli:
-            resp = cli.post(f"{base}/api/chat", json=body)
-            resp.raise_for_status()
-            data = resp.json()
+        cli = _lay_client()
+        resp = cli.post(f"{base}/api/chat", json=body)
+        resp.raise_for_status()
+        data = resp.json()
         try:
             return data["message"]["content"] or ""
         except KeyError as exc:
@@ -101,14 +109,14 @@ def goi_chat(
     }
     if extra:
         body.update(extra)
-    with httpx.Client(timeout=120) as cli:
-        resp = cli.post(
-            f"{url}/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}"},
-            json=body,
-        )
-        resp.raise_for_status()
-        data = resp.json()
+    cli = _lay_client()
+    resp = cli.post(
+        f"{url}/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json=body,
+    )
+    resp.raise_for_status()
+    data = resp.json()
     try:
         return data["choices"][0]["message"]["content"] or ""
     except (KeyError, IndexError) as exc:
