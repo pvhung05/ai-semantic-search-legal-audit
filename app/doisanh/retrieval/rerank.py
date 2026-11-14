@@ -7,13 +7,21 @@ from __future__ import annotations
 
 import logging
 
-import requests
+import httpx
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 _MAX_CHAR = 4000   # cat text truoc khi gui (server van tu truncate theo token)
+_RERANK_CLIENT: httpx.Client | None = None
+
+
+def _lay_rerank_client() -> httpx.Client:
+    global _RERANK_CLIENT
+    if _RERANK_CLIENT is None or _RERANK_CLIENT.is_closed:
+        _RERANK_CLIENT = httpx.Client(timeout=30)
+    return _RERANK_CLIENT
 
 
 def rerank(query: str, ung_vien: list[dict], top_n: int, *, khoa_text: str = "noi_dung") -> list[dict]:
@@ -26,10 +34,10 @@ def rerank(query: str, ung_vien: list[dict], top_n: int, *, khoa_text: str = "no
         return ung_vien[:top_n]
     texts = [(u.get(khoa_text) or "")[:_MAX_CHAR] for u in ung_vien]
     try:
-        r = requests.post(
+        cli = _lay_rerank_client()
+        r = cli.post(
             settings.RERANK_URL,
             json={"query": (query or "")[:_MAX_CHAR], "texts": texts, "truncate": True},
-            timeout=30,
         )
         r.raise_for_status()
         ket_qua = r.json()

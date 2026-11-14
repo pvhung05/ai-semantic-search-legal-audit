@@ -8,7 +8,7 @@ import random
 import time
 from dataclasses import dataclass
 
-import requests
+import httpx
 
 log = logging.getLogger(__name__)
 
@@ -47,13 +47,12 @@ def _cfg_tu_settings() -> FetchConfig:
 class Fetcher:
     def __init__(self, cfg: FetchConfig | None = None) -> None:
         self.cfg = cfg or _cfg_tu_settings()
-        self.s = requests.Session()
-        self.s.headers.update(_DEFAULT_HEADERS)
+        self.s = httpx.Client(headers=_DEFAULT_HEADERS, timeout=self.cfg.timeout)
 
     def _sleep(self) -> None:
         time.sleep(random.uniform(self.cfg.delay_min, self.cfg.delay_max))
 
-    def get(self, url: str) -> requests.Response:
+    def get(self, url: str) -> httpx.Response:
         last_exc: Exception | None = None
         for attempt in range(1, self.cfg.max_retry + 1):
             self._sleep()
@@ -66,14 +65,14 @@ class Fetcher:
                     continue
                 r.encoding = "utf-8"
                 return r
-            except requests.RequestException as e:
+            except httpx.HTTPError as e:
                 last_exc = e
                 log.warning("GET %s loi (lan %d/%d): %s",
                             url, attempt, self.cfg.max_retry, e)
                 time.sleep(self.cfg.retry_backoff * attempt)
         raise RuntimeError(f"GET {url} that bai") from last_exc
 
-    def rsc(self, action_id: str, body: str, referer: str = BASE + "/") -> requests.Response:
+    def rsc(self, action_id: str, body: str, referer: str = BASE + "/") -> httpx.Response:
         headers = {
             "Next-Action": action_id,
             "Content-Type": "text/plain;charset=UTF-8",
@@ -86,7 +85,7 @@ class Fetcher:
             self._sleep()
             try:
                 r = self.s.post(BASE + "/", headers=headers,
-                                data=body.encode("utf-8"), timeout=self.cfg.timeout)
+                                content=body.encode("utf-8"), timeout=self.cfg.timeout)
                 r.encoding = "utf-8"
                 if r.status_code == 200:
                     return r
@@ -104,7 +103,7 @@ class Fetcher:
                             action_id, r.status_code, attempt, self.cfg.max_retry)
             except ActionError:
                 raise
-            except requests.RequestException as e:
+            except httpx.HTTPError as e:
                 last_exc = e
                 log.warning("RSC %s loi (lan %d/%d): %s",
                             action_id, attempt, self.cfg.max_retry, e)
